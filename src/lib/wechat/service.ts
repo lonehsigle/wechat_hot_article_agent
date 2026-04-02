@@ -481,6 +481,8 @@ export function convertToWechatHtml(
   
   result += `</section>`;
   
+  result = optimizeForWechat(result);
+  
   return result;
 }
 
@@ -499,4 +501,56 @@ export function extractImageUrls(content: string): string[] {
   }
   
   return [...new Set(urls)];
+}
+
+export function divToSection(html: string): string {
+  let result = html;
+  result = result.replace(/<div([^>]*)>/gi, '<section$1>');
+  result = result.replace(/<\/div>/gi, '</section>');
+  return result;
+}
+
+export function injectTextIndent(html: string): string {
+  const processParagraph = (pHtml: string): string => {
+    if (pHtml.includes('text-indent')) {
+      return pHtml;
+    }
+    const styleMatch = pHtml.match(/<p\s+style="([^"]*)"/i);
+    if (styleMatch) {
+      const existingStyle = styleMatch[1];
+      if (existingStyle.trim()) {
+        return pHtml.replace(
+          /<p\s+style="([^"]*)"/i,
+          '<p style="text-indent: 2em; $1"'
+        );
+      } else {
+        return pHtml.replace(
+          /<p\s+style=""/i,
+          '<p style="text-indent: 2em;"'
+        );
+      }
+    }
+    return pHtml.replace(/<p>/gi, '<p style="text-indent: 2em;">');
+  };
+  let result = html;
+  result = result.replace(/<p[^>]*>[\s\S]*?<\/p>/gi, (match) => processParagraph(match));
+  return result;
+}
+
+export function compressHtml(html: string): string {
+  let result = html;
+  result = result.replace(/>\s+</g, '><');
+  result = result.replace(/\n/g, '');
+  result = result.replace(/\s{2,}/g, ' ');
+  result = result.replace(/\s+>/g, '>');
+  result = result.replace(/<\s+/g, '<');
+  return result.trim();
+}
+
+export function optimizeForWechat(html: string): string {
+  let result = html;
+  result = divToSection(result);
+  result = injectTextIndent(result);
+  result = compressHtml(result);
+  return result;
 }
