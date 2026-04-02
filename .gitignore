@@ -1,0 +1,72 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+build/
+dist/
+
+# Database files - 包含敏感数据
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+
+# Environment files - 包含API密钥等敏感信息
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Uploaded files and images
+uploads/
+public/uploads/
+public/wx_qrcode.png
+
+# Session and cache
+.sessions/
+
+# Local development
+*.local
+
+# Test coverage
+coverage/
+
+# Debug
+.npm/
+.eslintcache
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Sensitive directories
+backups/
+snapshots/
