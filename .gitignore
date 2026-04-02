@@ -70,3 +70,9 @@ next-env.d.ts
 # Sensitive directories
 backups/
 snapshots/
+
+# Sensitive documentation
+SPEC.md
+task_plan.md
+*_plan.md
+*_spec.md
