@@ -1234,6 +1234,9 @@ function HotTopicsPage() {
   const [platformCookies, setPlatformCookies] = useState<Record<string, string>>({});
   const [currentCookieInput, setCurrentCookieInput] = useState('');
   const [activeConfigPlatform, setActiveConfigPlatform] = useState('weibo');
+  const [collectingTopicId, setCollectingTopicId] = useState<number | null>(null);
+  const [collectingMessage, setCollectingMessage] = useState<string>('');
+  const [collectedTopicIds, setCollectedTopicIds] = useState<Set<number>>(new Set());
 
   const hotPlatforms = [
     { id: 'weibo', name: '微博', icon: '📱', color: '#ff8200' },
@@ -1323,6 +1326,79 @@ function HotTopicsPage() {
 
   const clearSelection = () => {
     setSelectedTopics(new Set());
+  };
+
+  const collectTopicMaterials = async (topic: typeof topics[0]) => {
+    setCollectingTopicId(topic.id);
+    setCollectingMessage('正在搜索相关文章...');
+
+    try {
+      const res = await fetch('/api/hot-topic-collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'collect-single',
+          data: { topic },
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setCollectingMessage(`成功采集 ${data.materials.length} 条素材`);
+        setCollectedTopicIds(prev => new Set([...prev, topic.id]));
+        setTimeout(() => {
+          setCollectingTopicId(null);
+          setCollectingMessage('');
+        }, 2000);
+      } else {
+        alert(data.message || '采集失败');
+        setCollectingTopicId(null);
+        setCollectingMessage('');
+      }
+    } catch (error) {
+      console.error('Collect materials failed:', error);
+      alert('采集失败，请检查网络连接');
+      setCollectingTopicId(null);
+      setCollectingMessage('');
+    }
+  };
+
+  const collectBatchMaterials = async () => {
+    if (selectedTopics.size === 0) {
+      alert('请先选择要采集的热点');
+      return;
+    }
+
+    const selectedTopicsList = topics.filter(t => selectedTopics.has(t.id));
+    setCollectingMessage(`正在采集 ${selectedTopicsList.length} 个热点的素材...`);
+
+    try {
+      const res = await fetch('/api/hot-topic-collect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'collect-batch',
+          data: { topics: selectedTopicsList },
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        alert(data.message);
+        const newCollectedIds = new Set(collectedTopicIds);
+        selectedTopicsList.forEach(t => newCollectedIds.add(t.id));
+        setCollectedTopicIds(newCollectedIds);
+      } else {
+        alert('批量采集失败');
+      }
+    } catch (error) {
+      console.error('Batch collect failed:', error);
+      alert('批量采集失败');
+    } finally {
+      setCollectingMessage('');
+    }
   };
 
   const handleRewrite = async () => {
@@ -1689,6 +1765,25 @@ function HotTopicsPage() {
                   {topic.category}
                 </div>
               </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  collectTopicMaterials(topic);
+                }}
+                disabled={collectingTopicId === topic.id || collectedTopicIds.has(topic.id)}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: collectedTopicIds.has(topic.id) ? '#22c55e' : (collectingTopicId === topic.id ? '#9ca3af' : '#8b5cf6'),
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: collectingTopicId === topic.id || collectedTopicIds.has(topic.id) ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {collectedTopicIds.has(topic.id) ? '✓ 已采集' : (collectingTopicId === topic.id ? '采集中...' : '📦 采集素材')}
+              </button>
               <div style={{
                 width: '24px',
                 height: '24px',
