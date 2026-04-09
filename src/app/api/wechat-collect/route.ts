@@ -666,9 +666,7 @@ async function collectArticleByUrl(articleUrl: string) {
   if (!auth || !auth.cookie) {
     throw new Error('请先完成微信授权');
   }
-  
-  console.log('开始采集文章:', articleUrl);
-  
+
   const res = await fetch(articleUrl, {
     headers: {
       'Cookie': auth.cookie,
@@ -677,16 +675,13 @@ async function collectArticleByUrl(articleUrl: string) {
       'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
     },
   });
-  
-  console.log('响应状态:', res.status);
-  
+
   if (res.status !== 200) {
     throw new Error(`请求失败，状态码: ${res.status}`);
   }
   
   const html = await res.text();
-  console.log('HTML长度:', html.length);
-  
+
   // 检查是否是真正的错误页面（通过检查关键元素）
   const hasErrorPage = html.includes('class="error_page"') || 
                        html.includes('class="weui-msg"') ||
@@ -727,9 +722,7 @@ async function collectArticleByUrl(articleUrl: string) {
   const nicknameMatch4 = html.match(/<meta\s+property="og:nickname"\s+content="([^"]+)"/);
   
   nickname = nicknameMatch1?.[1] || nicknameMatch2?.[1] || nicknameMatch3?.[1] || nicknameMatch4?.[1] || '';
-  
-  console.log('解析结果 - biz:', biz, 'nickname:', nickname);
-  
+
   if (!biz) {
     // 尝试从URL提取biz
     const bizFromUrl = articleUrl.match(/__biz=([^&]+)/);
@@ -811,11 +804,8 @@ async function collectArticleByUrl(articleUrl: string) {
       contentHtml = contentMatch[1];
     }
   }
-  
-  console.log('提取结果 - 标题:', title, '内容长度:', contentHtml.length);
-  
+
   if (!biz && !title) {
-    console.log('HTML片段:', html.substring(0, 2000));
     throw new Error('无法解析文章链接，请确认是有效的微信公众号文章链接');
   }
   
@@ -873,8 +863,6 @@ async function collectArticleByUrl(articleUrl: string) {
     topicId: null,
     isUsed: false,
   });
-  
-  console.log('文章采集成功并已存入素材库:', article.title);
-  
+
   return article;
 }

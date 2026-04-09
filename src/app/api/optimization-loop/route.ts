@@ -342,12 +342,10 @@ ${accountContext}
   }
 }`;
 
-    console.log('[闭环优化] 开始 AI 分析...');
     const response = await callLLM([
       { role: 'user', content: analysisPrompt },
     ], { temperature: 0.7, maxTokens: 4096 });
     const analysisResult = response.content;
-    console.log('[闭环优化] AI 分析结果:', analysisResult.substring(0, 200) + '...');
 
     let parsedResult;
     try {

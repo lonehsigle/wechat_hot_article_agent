@@ -411,13 +411,6 @@ export async function GET(request: NextRequest) {
         minimaxGroupId: MINIMAX_GROUP_ID,
       };
 
-      console.log('[Hot Radar] Search config:', {
-        hasTavily: !!TAVILY_API_KEY,
-        hasTiangong: !!TIANGONG_API_KEY,
-        hasMinimax: !!MINIMAX_API_KEY,
-        maxResults
-      });
-
       const searchResponse = await unifiedSearch(keyword, searchConfig);
       
       if (searchResponse.error) {

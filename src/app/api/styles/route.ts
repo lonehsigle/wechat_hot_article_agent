@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { writingStyles, layoutStyles } from '@/lib/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { callLLM, type LLMMessage } from '@/lib/llm/service';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 async function callLLMWithPrompt(prompt: string, temperature: number = 0.7, maxTokens: number = 3000): Promise<string> {
   const messages: LLMMessage[] = [{ role: 'user', content: prompt }];
@@ -25,17 +26,22 @@ interface StyleAnalysis {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl;
-  const type = searchParams.get('type') || 'writing';
-  const database = db();
-  
-  if (type === 'layout') {
-    const styles = await database.select().from(layoutStyles).orderBy(desc(layoutStyles.createdAt));
-    return NextResponse.json(styles);
+  try {
+    const { searchParams } = request.nextUrl;
+    const type = searchParams.get('type') || 'writing';
+    const database = db();
+
+    if (type === 'layout') {
+      const styles = await database.select().from(layoutStyles).orderBy(desc(layoutStyles.createdAt));
+      return successResponse(styles);
+    }
+
+    const styles = await database.select().from(writingStyles).orderBy(desc(writingStyles.createdAt));
+    return successResponse(styles);
+  } catch (error) {
+    console.error('Styles API error:', error);
+    return errorResponse(error instanceof Error ? error.message : 'Unknown error');
   }
-  
-  const styles = await database.select().from(writingStyles).orderBy(desc(writingStyles.createdAt));
-  return NextResponse.json(styles);
 }
 
 export async function POST(request: NextRequest) {

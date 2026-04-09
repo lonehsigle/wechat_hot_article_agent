@@ -2,13 +2,6 @@ import { db } from '../db';
 import { wechatAccounts } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
-interface WechatTokenCache {
-  accessToken: string;
-  expiresAt: number;
-}
-
-const tokenCache: Map<number, WechatTokenCache> = new Map();
-
 interface WechatAccountConfig {
   id: number;
   name: string;
@@ -33,32 +26,47 @@ export async function getWechatAccount(accountId: number): Promise<WechatAccount
 }
 
 export async function getAccessToken(accountId: number): Promise<string> {
-  const cached = tokenCache.get(accountId);
-  if (cached && cached.expiresAt > Date.now() + 60000) {
-    return cached.accessToken;
+  const database = db();
+
+  // 从数据库读取缓存的 token
+  const accounts = await database.select().from(wechatAccounts).where(eq(wechatAccounts.id, accountId));
+  if (accounts.length === 0) {
+    throw new Error('公众号账号不存在');
   }
 
-  const account = await getWechatAccount(accountId);
-  if (!account || !account.appId || !account.appSecret) {
+  const account = accounts[0];
+
+  // 检查数据库中缓存的 token 是否有效（提前 60 秒过期）
+  if (account.accessToken && account.tokenExpiresAt && account.tokenExpiresAt.getTime() > Date.now() + 60000) {
+    return account.accessToken;
+  }
+
+  if (!account.appId || !account.appSecret) {
     throw new Error('公众号账号未配置或配置不完整');
   }
 
   const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${account.appId}&secret=${account.appSecret}`;
-  
+
   const response = await fetch(url);
   const data = await response.json();
-  
+
   if (data.errcode) {
     throw new Error(`获取access_token失败: ${data.errmsg} (${data.errcode})`);
   }
 
   const accessToken = data.access_token;
   const expiresIn = data.expires_in || 7200;
-  
-  tokenCache.set(accountId, {
-    accessToken,
-    expiresAt: Date.now() + expiresIn * 1000,
-  });
+  const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+  // 保存到数据库
+  await database
+    .update(wechatAccounts)
+    .set({
+      accessToken,
+      tokenExpiresAt: expiresAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(wechatAccounts.id, accountId));
 
   return accessToken;
 }

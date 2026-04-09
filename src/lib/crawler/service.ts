@@ -226,19 +226,22 @@ function extractSource(url: string): string {
 }
 
 export async function batchFetchDeepContent(urls: string[]): Promise<DeepContent[]> {
-  const results: DeepContent[] = [];
-  
-  for (const url of urls.slice(0, 5)) {
-    try {
-      const content = await fetchDeepContent(url);
-      results.push(content);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error(`Failed to fetch ${url}:`, error);
-    }
-  }
-  
-  return results;
+  const limitedUrls = urls.slice(0, 5);
+
+  const results = await Promise.allSettled(
+    limitedUrls.map(url =>
+      fetchDeepContent(url).catch(err => {
+        console.error(`抓取文章失败 [${url}]:`, err);
+        return null;
+      })
+    )
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<DeepContent> =>
+      r.status === 'fulfilled' && r.value !== null
+    )
+    .map(r => r.value);
 }
 
 export function formatContentForMaterial(deepContent: DeepContent) {

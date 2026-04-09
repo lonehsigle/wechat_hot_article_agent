@@ -1,6 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
+
+const safeSanitize = (html: string): string => {
+  if (typeof window === 'undefined') return html;
+  try { return DOMPurify.sanitize(html); } catch { return html; }
+};
 
 interface PendingArticle {
   id: number;
@@ -49,7 +55,7 @@ const styles: Record<string, React.CSSProperties> = {
   statValue: {
     fontSize: '28px',
     fontWeight: '700',
-    color: '#3b82f6',
+    color: '#E8652D',
   },
   statLabel: {
     fontSize: '14px',
@@ -119,7 +125,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'all 0.2s',
   },
   btnPrimary: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
     color: '#fff',
   },
   btnSecondary: {
@@ -142,7 +148,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusPending: {
     backgroundColor: '#dbeafe',
-    color: '#2563eb',
+    color: '#D4551F',
   },
   statusPublished: {
     backgroundColor: '#d1fae5',
@@ -577,8 +583,8 @@ export default function PendingPublishPage({ onPreview }: PendingPublishPageProp
               <div 
                 style={styles.previewArticle}
                 data-pp-preview-article
-                dangerouslySetInnerHTML={{ 
-                  __html: previewArticle.content.replace(/\n/g, '<br/>').replace(/<p>/g, '<p style="margin-bottom: 16px;">') 
+                dangerouslySetInnerHTML={{
+                  __html: safeSanitize(previewArticle.content.replace(/\n/g, '<br/>').replace(/<p>/g, '<p style="margin-bottom: 16px;">'))
                 }}
               />
             </div>

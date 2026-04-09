@@ -2,40 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { benchmarkAccounts, viralTitles } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const accountId = searchParams.get('accountId');
-  const platform = searchParams.get('platform');
-  const isLowFollower = searchParams.get('isLowFollower');
-  const withTitles = searchParams.get('withTitles');
+  try {
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get('accountId');
+    const platform = searchParams.get('platform');
+    const isLowFollower = searchParams.get('isLowFollower');
+    const withTitles = searchParams.get('withTitles');
 
-  const database = db();
+    const database = db();
 
-  if (accountId && withTitles === 'true') {
-    const titles = await database
+    if (accountId && withTitles === 'true') {
+      const titles = await database
+        .select()
+        .from(viralTitles)
+        .where(eq(viralTitles.benchmarkAccountId, parseInt(accountId)))
+        .orderBy(desc(viralTitles.publishDate));
+      return successResponse(titles);
+    }
+
+    const conditions = [];
+    if (platform) {
+      conditions.push(eq(benchmarkAccounts.platform, platform));
+    }
+    if (isLowFollower === 'true') {
+      conditions.push(eq(benchmarkAccounts.isLowFollowerViral, true));
+    }
+
+    const accounts = await database
       .select()
-      .from(viralTitles)
-      .where(eq(viralTitles.benchmarkAccountId, parseInt(accountId)))
-      .orderBy(desc(viralTitles.publishDate));
-    return NextResponse.json(titles);
-  }
+      .from(benchmarkAccounts)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(benchmarkAccounts.createdAt));
 
-  const conditions = [];
-  if (platform) {
-    conditions.push(eq(benchmarkAccounts.platform, platform));
+    return successResponse(accounts);
+  } catch (error) {
+    console.error('Benchmark API error:', error);
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
-  if (isLowFollower === 'true') {
-    conditions.push(eq(benchmarkAccounts.isLowFollowerViral, true));
-  }
-
-  const accounts = await database
-    .select()
-    .from(benchmarkAccounts)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(benchmarkAccounts.createdAt));
-
-  return NextResponse.json(accounts);
 }
 
 export async function POST(request: NextRequest) {
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       }).returning();
 
-      return NextResponse.json(account);
+      return successResponse(account);
     }
 
     if (action === 'create-title') {
@@ -83,7 +89,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       }).returning();
 
-      return NextResponse.json(title);
+      return successResponse(title);
     }
 
     if (action === 'batch-create-titles') {
@@ -113,16 +119,13 @@ export async function POST(request: NextRequest) {
         }))
       ).returning();
 
-      return NextResponse.json({ count: inserted.length });
+      return successResponse({ count: inserted.length });
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    return errorResponse('Unknown action', 400);
   } catch (error) {
     console.error('Benchmark API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '操作失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
 }
 
@@ -143,7 +146,7 @@ export async function PUT(request: NextRequest) {
         .where(eq(benchmarkAccounts.id, id))
         .returning();
 
-      return NextResponse.json(account);
+      return successResponse(account);
     }
 
     if (action === 'update-title') {
@@ -156,16 +159,13 @@ export async function PUT(request: NextRequest) {
         .where(eq(viralTitles.id, id))
         .returning();
 
-      return NextResponse.json(title);
+      return successResponse(title);
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    return errorResponse('Unknown action', 400);
   } catch (error) {
     console.error('Benchmark API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '操作失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
 }
 
@@ -176,7 +176,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id || !type) {
-      return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+      return errorResponse('Missing parameters', 400);
     }
 
     const database = db();
@@ -188,12 +188,9 @@ export async function DELETE(request: NextRequest) {
       await database.delete(viralTitles).where(eq(viralTitles.id, parseInt(id)));
     }
 
-    return NextResponse.json({ success: true });
+    return successResponse(null);
   } catch (error) {
     console.error('Benchmark API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '删除失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '删除失败');
   }
 }

@@ -70,18 +70,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '公众号账号不存在' }, { status: 400 });
       }
 
-      console.log('[发布] 开始处理 publish-with-images');
-      console.log('[发布] 接收到的 images 数量:', images?.length || 0);
-      console.log('[发布] 接收到的 layoutStyle:', layoutStyle);
-
       const imageMappings: { original: string; wechatUrl: string }[] = [];
       let thumbMediaId: string | undefined;
 
       if (images && Array.isArray(images) && images.length > 0) {
         const firstImage = images[0];
-        console.log('[发布] 第一张图片结构:', Object.keys(firstImage));
-        console.log('[发布] 第一张图片 imageBase64 长度:', firstImage.imageBase64?.length || 0);
-        
+
         try {
           const base64Data = firstImage.imageBase64 || firstImage;
           
@@ -90,7 +84,6 @@ export async function POST(request: NextRequest) {
             'thumb'
           );
           thumbMediaId = uploadResult.mediaId;
-          console.log('[发布] 封面图上传成功，mediaId:', thumbMediaId, 'url:', uploadResult.url);
           if (uploadResult.url) {
             imageMappings.push({
               original: 'generated-image-0',
@@ -105,13 +98,11 @@ export async function POST(request: NextRequest) {
           try {
             const img = images[i];
             const base64Data = img.imageBase64 || img;
-            console.log(`[发布] 上传第 ${i} 张图片，base64长度:`, base64Data?.length || 0);
-            
+
             const uploadResult = await uploadImageFromUrl(accountId, 
               `data:image/jpeg;base64,${base64Data}`, 
               'image'
             );
-            console.log(`[发布] 第 ${i} 张图片上传成功，url:`, uploadResult.url);
             if (uploadResult.url) {
               imageMappings.push({
                 original: `generated-image-${i}`,
@@ -124,45 +115,30 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('[发布] 图片映射表:', imageMappings);
-
       let contentWithImages = content;
-      
-      console.log('[发布] 原始内容长度:', content.length);
-      console.log('[发布] 图片数量:', images?.length);
-      console.log('[发布] 图片映射数量:', imageMappings.length);
-      
+
       if (images && images.length > 0) {
         const paragraphs = content.split('\n\n');
         const totalParagraphs = paragraphs.length;
-        console.log('[发布] 段落数量:', totalParagraphs);
-        
+
         for (let i = images.length - 1; i >= 0; i--) {
           const img = images[i];
           const position = img.position || ((i + 1) / (images.length + 1));
           const insertIndex = Math.floor(totalParagraphs * position);
           const mappingKey = `generated-image-${i}`;
           const wechatUrl = imageMappings.find(m => m.original === mappingKey)?.wechatUrl;
-          
-          console.log(`[发布] 查找图片 ${i}: key=${mappingKey}, found=${!!wechatUrl}`);
-          
+
           if (wechatUrl) {
             const imgTag = `\n\n<img src="${wechatUrl}" style="width:100%;display:block;margin:20px 0;" />\n\n`;
             paragraphs.splice(Math.min(insertIndex, paragraphs.length), 0, imgTag);
-            console.log(`[发布] 在位置 ${insertIndex} 插入图片`);
-          } else {
-            console.log(`[发布] 未找到图片 ${i} 的映射`);
           }
         }
-        
+
         contentWithImages = paragraphs.join('\n\n');
-        console.log('[发布] 插入图片后内容长度:', contentWithImages.length);
       }
 
-      
-      console.log('[发布] 排版风格:', layoutStyle);
+
       const wechatHtml = convertToWechatHtml(contentWithImages, imageMappings, layoutStyle);
-      console.log('[发布] 最终HTML长度:', wechatHtml.length);
       const plainText = content.replace(/<[^>]+>/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
       const digest = plainText.length > 117 ? plainText.slice(0, 117) + '...' : plainText;
 
@@ -206,22 +182,19 @@ export async function POST(request: NextRequest) {
       const imageMappings: { original: string; wechatUrl: string }[] = [];
 
       if (autoSearchImages && !coverImageUrl) {
-        console.log('[发布API] 开始生成封面图片...');
         try {
           const images = await generateArticleImages({
             title,
             content,
             imageCount: 1,
           });
-          console.log(`[发布API] 生成了 ${images.length} 张图片`);
           if (images.length > 0 && images[0].base64) {
             try {
-              const uploadResult = await uploadImageFromUrl(accountId, 
-                `data:image/png;base64,${images[0].base64}`, 
+              const uploadResult = await uploadImageFromUrl(accountId,
+                `data:image/png;base64,${images[0].base64}`,
                 'thumb'
               );
               thumbMediaId = uploadResult.mediaId;
-              console.log(`[发布API] 封面图片上传成功，mediaId: ${thumbMediaId}`);
               if (uploadResult.url) {
                 imageMappings.push({
                   original: 'ai-generated-cover',
@@ -231,8 +204,6 @@ export async function POST(request: NextRequest) {
             } catch (error) {
               console.error('[发布API] 封面图片上传失败:', error);
             }
-          } else {
-            console.log('[发布API] 未生成任何封面图片');
           }
         } catch (error) {
           console.error('[发布API] 生成封面图片失败:', error);

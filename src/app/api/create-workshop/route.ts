@@ -9,7 +9,6 @@ async function callLLMWithPrompt(prompt: string, temperature: number = 0.7, maxT
   try {
     const messages: LLMMessage[] = [{ role: 'user', content: prompt }];
     const result = await callLLM(messages, { temperature, maxTokens });
-    console.log(`[LLM调用] 返回内容长度: ${result.content?.length || 0}, 预览: ${result.content?.substring(0, 100) || '空'}...`);
     return result.content || '';
   } catch (error) {
     console.error('[LLM调用] 错误:', error);
@@ -461,9 +460,7 @@ ${params.styleData.emotionalHooks?.length ? `情绪钩子：${params.styleData.e
     
     console.log('[创作流程] 步骤1: 生成开头...');
     const openingResult = await callLLMWithPrompt(openingPrompt, 0.8);
-    console.log(`[创作流程] 开头字数: ${openingResult.length}`);
-    console.log(`[创作流程] 开头预览: ${openingResult.substring(0, 100)}...`);
-    
+
     if (!openingResult) {
       console.error('[创作流程] 警告: 开头为空！');
     }
@@ -495,8 +492,6 @@ ${params.styleData.template ? `参考模板：${params.styleData.template.substr
 
     console.log('[创作流程] 步骤2: 根据开头生成正文...');
     const bodyResult = await callLLMWithPrompt(bodyPrompt, 0.7);
-    console.log(`[创作流程] 正文字数: ${bodyResult.length}`);
-    console.log(`[创作流程] 正文预览: ${bodyResult.substring(0, 100)}...`);
 
     if (!bodyResult) {
       console.error('[创作流程] 警告: 正文为空！');
@@ -513,8 +508,7 @@ ${params.styleData.endingDesign ? `结尾设计：${params.styleData.endingDesig
     const endingPromptTemplate = await getPromptTemplate('ending');
     const bodyPreview = bodyResult.substring(0, 1000);
     const openingPreview = openingResult.substring(0, 300);
-    console.log(`[创作流程] 步骤3: 根据开头和正文生成结尾...`);
-    
+
     const endingPrompt = endingPromptTemplate
       .replace('{originalContent}', originalContentForPrompt)
       .replace('{title}', params.title)
@@ -523,7 +517,6 @@ ${params.styleData.endingDesign ? `结尾设计：${params.styleData.endingDesig
       + endingStyleContext;
 
     const endingResult = await callLLMWithPrompt(endingPrompt, 0.8);
-    console.log(`[创作流程] 结尾字数: ${endingResult.length}`);
     results.ending = endingResult;
 
     return {
@@ -759,7 +752,6 @@ async function evaluateTitles(titles: string[], originalTitle?: string) {
 
 async function generateTitles(params: { keyword: string; content?: string; style?: string; originalTitle?: string; readCount?: number; styleData?: { name: string; titleStrategy?: string | null; exampleTitles?: string[] | null } | null }) {
   if (params.readCount && params.readCount >= 50000 && params.originalTitle) {
-    console.log(`[标题生成] 阅读量${params.readCount}超过5万，直接返回原标题: ${params.originalTitle}`);
     return { titles: [params.originalTitle] };
   }
 
@@ -1016,7 +1008,6 @@ async function fullSOPWorkflow(params: {
     if (params.readCount && params.readCount >= 50000 && params.originalTitle) {
       bestTitle = params.originalTitle;
       titles = { titles: [params.originalTitle] };
-      console.log(`[标题逻辑] 原标题阅读量${params.readCount}超过5万，直接使用原标题: ${params.originalTitle}`);
     } else {
       const generatedTitles = await generateTitles({ 
         keyword: params.keyword, 
@@ -1060,8 +1051,6 @@ async function fullSOPWorkflow(params: {
     const maxPolishAttempts = 3;
     
     while (!aiCheck.passed && polishAttempts < maxPolishAttempts) {
-      console.log(`[AI去味] 第${polishAttempts + 1}次润色，当前分数: ${aiCheck.score}`);
-      console.log(`[AI去味] 检测到的问题: ${aiCheck.issues?.slice(0, 3).join(', ')}`);
       result[2].data = { 
         ...aiCheck, 
         message: `AI检测分数${aiCheck.score}，正在进行第${polishAttempts + 1}次润色优化...` 
@@ -1078,7 +1067,6 @@ async function fullSOPWorkflow(params: {
         aiCheck = await checkAIContent(currentContent);
         polishAttempts++;
       } else {
-        console.log(`[AI去味] 润色失败: ${polishResult.error}`);
         break;
       }
     }
@@ -1088,9 +1076,8 @@ async function fullSOPWorkflow(params: {
     
     if (!aiCheck.passed) {
       result[2].error = `经过${polishAttempts}次润色后AI检测分数${aiCheck.score}，建议人工优化`;
-      console.log(`[AI去味] 经过${polishAttempts}次润色后分数${aiCheck.score}仍未达标`);
     } else {
-      console.log(`[AI去味] 润色成功，最终分数: ${aiCheck.score}`);
+      // 润色成功
     }
     
     const finalParts = currentContent.split('\n\n');

@@ -1,4 +1,5 @@
 import { getLLMConfig } from '@/lib/db/queries';
+import { decrypt } from '@/lib/db/crypto';
 import { getPromptTemplate } from '@/lib/prompts';
 
 export interface LLMMessage {
@@ -70,9 +71,10 @@ function getProviderConfig(provider: string, baseUrl?: string | null): { endpoin
 
   const config = configs[provider] || configs.openai;
   if (baseUrl) {
-    config.endpoint = baseUrl.endsWith('/chat/completions') || baseUrl.endsWith('/messages') 
+    const endpoint = baseUrl.endsWith('/chat/completions') || baseUrl.endsWith('/messages') 
       ? baseUrl 
       : `${baseUrl.replace(/\/$/, '')}/v1/messages`;
+    return { ...config, endpoint };
   }
   return config;
 }
@@ -106,7 +108,7 @@ export async function callLLM(
   const effectiveProvider = providerFromModel || config.provider;
   const providerConfig = getProviderConfig(effectiveProvider, config.baseUrl);
   const model = modelFromOption || config.model || 'gpt-4o';
-  const effectiveApiKey = config.apiKey;
+  const effectiveApiKey = decrypt(config.apiKey);
 
   if (providerConfig.useAnthropicFormat) {
     const systemMessage = messages.find(m => m.role === 'system');
@@ -169,7 +171,7 @@ export async function callLLM(
   }
 
   const data = await response.json();
-  console.log('LLM API Response:', JSON.stringify(data).substring(0, 1000));
+  // LLM API 调用成功
   
   if (data.base_resp && data.base_resp.status_code !== 0) {
     throw new Error(`MiniMax API 错误: ${data.base_resp.status_msg || 'Unknown error'}`);
@@ -277,7 +279,7 @@ export async function* streamLLM(
   const effectiveProvider = providerFromModel || config.provider;
   const providerConfig = getProviderConfig(effectiveProvider, config.baseUrl);
   const model = modelFromOption || config.model || 'gpt-4o';
-  const effectiveApiKey = config.apiKey;
+  const effectiveApiKey = decrypt(config.apiKey);
 
   const response = await fetch(providerConfig.endpoint, {
     method: 'POST',

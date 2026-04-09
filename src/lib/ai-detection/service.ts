@@ -270,12 +270,45 @@ export function detectAIPatterns(content: string): AICheckResult {
   const issues: string[] = [];
   const suggestions: string[] = [];
 
+  // 排除引用内容块，避免将引用中的 AI 特征误判为文章本身的 AI 痕迹
+  const quoteBlocks: string[] = [];
+  const contentWithoutQuotes = content.replace(/^>\s*.+$/gm, (match) => {
+    quoteBlocks.push(match);
+    return '';
+  });
+
+  // 排除列表格式行（以 - * 或数字. 开头的行），列表模板化是正常排版
+  const listLines: string[] = [];
+  const contentWithoutLists = contentWithoutQuotes.replace(/^\s*[-*]\s+.+$/gm, (match) => {
+    listLines.push(match);
+    return '';
+  }).replace(/^\s*\d+[.、)]\s+.+$/gm, (match) => {
+    listLines.push(match);
+    return '';
+  });
+
+  // 使用排除后的内容进行检测
+  const contentForDetection = contentWithoutLists;
+
+  // 计算短文本置信度权重：文本越短，AI 检测结果越不可靠
+  const contentLength = contentForDetection.length;
+  const shortTextThreshold = 200;
+  const normalTextThreshold = 1000;
+  let confidenceWeight = 1.0;
+  if (contentLength < shortTextThreshold) {
+    // 短文本（<200字）：权重降至 0.5，大幅降低误报
+    confidenceWeight = 0.5;
+  } else if (contentLength < normalTextThreshold) {
+    // 中等长度文本（200-1000字）：线性过渡
+    confidenceWeight = 0.5 + 0.5 * ((contentLength - shortTextThreshold) / (normalTextThreshold - shortTextThreshold));
+  }
+
   for (const pattern of AI_PATTERNS) {
     const matches: string[] = [];
-    
+
     for (const signal of pattern.signals) {
       const regex = new RegExp(signal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-      const found = content.match(regex);
+      const found = contentForDetection.match(regex);
       if (found) {
         matches.push(...found);
       }
@@ -318,13 +351,20 @@ export function detectAIPatterns(content: string): AICheckResult {
     .reduce((sum, d) => sum + d.count, 0);
 
   let aiScore = 100;
+  // 降低 low severity 扣分权重（2 -> 1），减少低严重性模式的误报影响
   aiScore -= highSeverityMatches * 8;
   aiScore -= mediumSeverityMatches * 4;
-  aiScore -= lowSeverityMatches * 2;
+  aiScore -= lowSeverityMatches * 1;
+  aiScore = Math.max(0, Math.min(100, aiScore));
+
+  // 应用短文本置信度权重：将扣分部分按权重回补
+  const rawDeduction = 100 - aiScore;
+  const adjustedDeduction = rawDeduction * confidenceWeight;
+  aiScore = Math.round(100 - adjustedDeduction);
   aiScore = Math.max(0, Math.min(100, aiScore));
 
   const qualityScore = calculateQualityScore(content, detectedPatterns);
-  
+
   const finalScore = aiScore;
 
   if (detectedPatterns.length === 0) {
@@ -341,7 +381,8 @@ export function detectAIPatterns(content: string): AICheckResult {
     suggestions.push('删除填充短语，直接陈述事实');
   }
 
-  const passed = finalScore >= 80;
+  // 提高通过阈值到 70 分（原 80 分），减少误报导致的误判
+  const passed = finalScore >= 70;
 
   return {
     score: finalScore,
@@ -468,8 +509,8 @@ export function checkPublishReadiness(result: AICheckResult): {
 } {
   const requiredActions: string[] = [];
 
-  if (result.score < 80) {
-    requiredActions.push(`AI味评分${result.score}分，需要达到80分以上（分数越高=AI味越低）`);
+  if (result.score < 70) {
+    requiredActions.push(`AI味评分${result.score}分，需要达到70分以上（分数越高=AI味越低）`);
   }
 
   if (result.qualityScore.authenticity < 6) {

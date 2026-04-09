@@ -26,6 +26,15 @@ function getDb(): ReturnType<typeof drizzle> {
 
 export { getDb as db };
 
+export function getSqlite(): Database.Database {
+  if (!sqlite) {
+    sqlite = new Database(dbPath);
+    sqlite.pragma('journal_mode = WAL');
+    db = drizzle(sqlite, { schema });
+  }
+  return sqlite;
+}
+
 export function initDatabase() {
   if (initialized) return;
   initialized = true;
@@ -865,11 +874,21 @@ function migrateDatabase() {
       console.log('Added tone_preference column to wechat_accounts');
     }
     
+    if (!wechatAccountsColumns.includes('access_token')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN access_token TEXT');
+      console.log('Added access_token column to wechat_accounts');
+    }
+    
+    if (!wechatAccountsColumns.includes('token_expires_at')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN token_expires_at INTEGER');
+      console.log('Added token_expires_at column to wechat_accounts');
+    }
+    
     insertDefaultStyles();
     
     console.log('Database migration completed');
   } catch (error) {
-    console.log('Migration check completed (some migrations may have already been applied)');
+    console.error('数据库迁移出错:', error);
   }
 }
 
@@ -955,11 +974,12 @@ function insertDefaultStyles() {
       }
     ];
     
+    const insertWritingStyleStmt = sqlite.prepare(`
+      INSERT INTO writing_styles (name, title_strategy, opening_style, article_framework, content_progression, ending_design, language_style, emotional_hooks, article_type, example_titles, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `);
     for (const style of defaultWritingStyles) {
-      sqlite.exec(`
-        INSERT INTO writing_styles (name, title_strategy, opening_style, article_framework, content_progression, ending_design, language_style, emotional_hooks, article_type, example_titles, is_active, created_at, updated_at)
-        VALUES ('${style.name}', '${style.title_strategy}', '${style.opening_style}', '${style.article_framework}', '${style.content_progression}', '${style.ending_design}', '${style.language_style}', '${JSON.stringify(style.emotional_hooks)}', '${style.article_type}', '${style.example_titles}', 1, ${now}, ${now})
-      `);
+      insertWritingStyleStmt.run(style.name, style.title_strategy, style.opening_style, style.article_framework, style.content_progression, style.ending_design, style.language_style, JSON.stringify(style.emotional_hooks), style.article_type, style.example_titles, now, now);
     }
     console.log('Inserted default writing styles');
   }
@@ -1040,11 +1060,12 @@ function insertDefaultStyles() {
       }
     ];
     
+    const insertLayoutStyleStmt = sqlite.prepare(`
+      INSERT INTO layout_styles (name, description, header_style, paragraph_spacing, list_style, highlight_style, emoji_usage, quote_style, image_position, callout_style, color_scheme, font_style, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `);
     for (const style of defaultLayoutStyles) {
-      sqlite.exec(`
-        INSERT INTO layout_styles (name, description, header_style, paragraph_spacing, list_style, highlight_style, emoji_usage, quote_style, image_position, callout_style, color_scheme, font_style, is_active, created_at, updated_at)
-        VALUES ('${style.name}', '${style.description}', '${style.header_style}', '${style.paragraph_spacing}', '${style.list_style}', '${style.highlight_style}', '${style.emoji_usage}', '${style.quote_style}', '${style.image_position}', '${style.callout_style}', '${style.color_scheme}', '${style.font_style}', 1, ${now}, ${now})
-      `);
+      insertLayoutStyleStmt.run(style.name, style.description, style.header_style, style.paragraph_spacing, style.list_style, style.highlight_style, style.emoji_usage, style.quote_style, style.image_position, style.callout_style, style.color_scheme, style.font_style, now, now);
     }
     console.log('Inserted default layout styles');
   }

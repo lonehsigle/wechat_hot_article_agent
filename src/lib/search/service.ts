@@ -483,7 +483,6 @@ export async function unifiedSearch(
   
   if (config.tavilyApiKey) {
     try {
-      console.log('[Search] Trying Tavily...');
       return await tavilySearch(keyword, { apiKey: config.tavilyApiKey, maxResults });
     } catch (error) {
       errors.push(`Tavily: ${error instanceof Error ? error.message : 'failed'}`);
@@ -493,7 +492,6 @@ export async function unifiedSearch(
   
   if (config.tiangongApiKey) {
     try {
-      console.log('[Search] Trying Tiangong...');
       return await tiangongSearch(keyword, { apiKey: config.tiangongApiKey, maxResults });
     } catch (error) {
       errors.push(`Tiangong: ${error instanceof Error ? error.message : 'failed'}`);
@@ -503,7 +501,6 @@ export async function unifiedSearch(
   
   if (config.minimaxApiKey) {
     try {
-      console.log('[Search] Trying MiniMax Web Search...');
       return await minimaxSearch(keyword, { 
         apiKey: config.minimaxApiKey, 
         groupId: config.minimaxGroupId,
@@ -516,7 +513,6 @@ export async function unifiedSearch(
   }
   
   try {
-    console.log('[Search] Trying Wikipedia...');
     return await wikipediaSearch(keyword, maxResults);
   } catch (error) {
     errors.push(`Wikipedia: ${error instanceof Error ? error.message : 'failed'}`);
@@ -524,7 +520,6 @@ export async function unifiedSearch(
   }
   
   try {
-    console.log('[Search] Trying Bing...');
     return await bingSearch(keyword, maxResults);
   } catch (error) {
     errors.push(`Bing: ${error instanceof Error ? error.message : 'failed'}`);
@@ -532,7 +527,6 @@ export async function unifiedSearch(
   }
   
   try {
-    console.log('[Search] Trying DuckDuckGo...');
     const ddgResult = await duckDuckGoSearch(keyword, maxResults);
     if (ddgResult.items.length > 0) {
       return ddgResult;
@@ -543,7 +537,6 @@ export async function unifiedSearch(
   }
   
   try {
-    console.log('[Search] Trying Baidu...');
     return await baiduSearch(keyword, maxResults);
   } catch (error) {
     errors.push(`Baidu: ${error instanceof Error ? error.message : 'failed'}`);
@@ -551,7 +544,6 @@ export async function unifiedSearch(
   }
   
   try {
-    console.log('[Search] Trying Google...');
     return await googleSearch(keyword, maxResults);
   } catch (error) {
     errors.push(`Google: ${error instanceof Error ? error.message : 'failed'}`);

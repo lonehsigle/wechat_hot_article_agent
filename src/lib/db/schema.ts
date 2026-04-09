@@ -67,6 +67,8 @@ export const wechatAccounts = sqliteTable('wechat_accounts', {
   contentStyle: text('content_style'),
   mainTopics: text('main_topics', { mode: 'json' }).$type<string[]>(),
   tonePreference: text('tone_preference'),
+  accessToken: text('access_token'),
+  tokenExpiresAt: integer('token_expires_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

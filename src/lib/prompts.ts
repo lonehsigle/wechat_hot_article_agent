@@ -696,7 +696,6 @@ export async function initializePrompts(): Promise<void> {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
-        console.log(`[Prompts] Initialized prompt "${key}"`);
       } else {
         await db().update(promptConfigs)
           .set({ 
@@ -706,12 +705,10 @@ export async function initializePrompts(): Promise<void> {
             updatedAt: new Date() 
           })
           .where(eq(promptConfigs.key, key));
-        console.log(`[Prompts] Updated prompt "${key}" to latest version`);
       }
     }
-    
+
     initialized = true;
-    console.log('[Prompts] Database initialization complete');
   } catch (error) {
     console.error('[Prompts] Failed to initialize prompts:', error);
   }
@@ -746,7 +743,6 @@ export async function updatePromptTemplate(key: string, template: string): Promi
       await db().update(promptConfigs)
         .set({ template, updatedAt: new Date() })
         .where(eq(promptConfigs.key, key));
-      console.log(`[Prompts] Updated prompt "${key}" in database`);
       return true;
     } else if (DEFAULT_PROMPTS[key]) {
       await db().insert(promptConfigs).values({
@@ -757,7 +753,6 @@ export async function updatePromptTemplate(key: string, template: string): Promi
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      console.log(`[Prompts] Created prompt "${key}" in database`);
       return true;
     }
   } catch (error) {

@@ -78,53 +78,58 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action, cookies } = body;
+  try {
+    const body = await request.json();
+    const { action, cookies } = body;
 
-  if (action === 'fetch-all') {
-    const results = await fetchAllPlatforms(cookies || {});
-    const hasRealData = results.some(r => r.isRealData);
-    return NextResponse.json({ 
-      success: true, 
-      total: results.length, 
-      topics: results,
-      isRealData: hasRealData,
-      message: hasRealData ? undefined : '未配置 Cookie，使用演示数据'
-    });
-  }
-
-  if (action === 'fetch-platform') {
-    const { platform } = body;
-    if (!PLATFORMS.includes(platform)) {
-      return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
+    if (action === 'fetch-all') {
+      const results = await fetchAllPlatforms(cookies || {});
+      const hasRealData = results.some(r => r.isRealData);
+      return NextResponse.json({ 
+        success: true, 
+        total: results.length, 
+        topics: results,
+        isRealData: hasRealData,
+        message: hasRealData ? undefined : '未配置 Cookie，使用演示数据'
+      });
     }
-    
-    const cookie = cookies?.[platform];
-    const topics = await fetchPlatformTopics(platform, cookie);
-    return NextResponse.json({ 
-      success: true, 
-      count: topics.length, 
-      topics,
-      isRealData: topics.length > 0 && topics[0].isRealData
-    });
-  }
 
-  if (action === 'predict-black-horses') {
-    const blackHorses = await predictBlackHorses();
-    return NextResponse.json({ success: true, blackHorses });
-  }
-
-  if (action === 'rewrite-articles') {
-    const { articleIds, style } = body;
-    if (!articleIds || !Array.isArray(articleIds) || articleIds.length === 0) {
-      return NextResponse.json({ error: 'articleIds is required' }, { status: 400 });
+    if (action === 'fetch-platform') {
+      const { platform } = body;
+      if (!PLATFORMS.includes(platform)) {
+        return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
+      }
+      
+      const cookie = cookies?.[platform];
+      const topics = await fetchPlatformTopics(platform, cookie);
+      return NextResponse.json({ 
+        success: true, 
+        count: topics.length, 
+        topics,
+        isRealData: topics.length > 0 && topics[0].isRealData
+      });
     }
-    
-    const result = await rewriteArticles(articleIds, style);
-    return NextResponse.json({ success: true, article: result });
-  }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (action === 'predict-black-horses') {
+      const blackHorses = await predictBlackHorses();
+      return NextResponse.json({ success: true, blackHorses });
+    }
+
+    if (action === 'rewrite-articles') {
+      const { articleIds, style } = body;
+      if (!articleIds || !Array.isArray(articleIds) || articleIds.length === 0) {
+        return NextResponse.json({ error: 'articleIds is required' }, { status: 400 });
+      }
+      
+      const result = await rewriteArticles(articleIds, style);
+      return NextResponse.json({ success: true, article: result });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Hot topics API error:', error);
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '操作失败' }, { status: 500 });
+  }
 }
 
 async function fetchAllPlatforms(cookies: Record<string, string>) {
@@ -148,6 +153,21 @@ async function fetchPlatformTopics(platform: string, cookie?: string) {
       if (realTopics.length > 0) {
         const inserted: typeof hotTopics.$inferSelect[] = [];
         for (const topic of realTopics) {
+          // 去重检查：按标题模糊匹配同平台已有话题
+          const existing = await db().select({ id: hotTopics.id })
+            .from(hotTopics)
+            .where(
+              and(
+                eq(hotTopics.platform, topic.platform),
+                like(hotTopics.title, topic.title)
+              )
+            )
+            .limit(1);
+
+          if (existing.length > 0) {
+            continue; // 已存在相同标题的话题，跳过插入
+          }
+
           const [saved] = await db().insert(hotTopics).values({
             platform: topic.platform,
             title: topic.title,
@@ -181,6 +201,21 @@ async function fetchPlatformTopics(platform: string, cookie?: string) {
   const inserted: typeof hotTopics.$inferSelect[] = [];
   
   for (const topic of mockTopics) {
+    // 去重检查：按标题模糊匹配同平台已有话题
+    const existing = await db().select({ id: hotTopics.id })
+      .from(hotTopics)
+      .where(
+        and(
+          eq(hotTopics.platform, topic.platform),
+          like(hotTopics.title, topic.title)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      continue; // 已存在相同标题的话题，跳过插入
+    }
+
     const [saved] = await db().insert(hotTopics).values({
       platform: topic.platform,
       title: topic.title,

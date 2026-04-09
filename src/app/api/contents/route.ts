@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { contents } from '@/lib/db/schema';
 import { desc, isNotNull, sql, isNull } from 'drizzle-orm';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       .from(contents)
       .where(isNotNull(contents.title));
 
-    return NextResponse.json({
+    return successResponse({
       contents: result.map(item => ({
         ...item,
         readCount: item.readCount || 0,
@@ -41,9 +42,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Contents API] Error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : 'Unknown error');
   }
 }

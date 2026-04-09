@@ -50,113 +50,118 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action, keyword, taskId, articles, report } = body;
-  const database = db();
+  try {
+    const body = await request.json();
+    const { action, keyword, taskId, articles, report } = body;
+    const database = db();
 
-  if (action === 'start') {
-    if (!keyword || !keyword.trim()) {
-      return NextResponse.json({ error: '请输入关键词' }, { status: 400 });
+    if (action === 'start') {
+      if (!keyword || !keyword.trim()) {
+        return NextResponse.json({ error: '请输入关键词' }, { status: 400 });
+      }
+
+      const [task] = await database.insert(analysisTasks).values({
+        keyword: keyword.trim(),
+        status: 'pending',
+        totalArticles: 0,
+        analyzedArticles: 0,
+      }).returning();
+
+      analyzeKeyword(task.id, keyword.trim());
+
+      return NextResponse.json({ success: true, taskId: task.id });
     }
 
-    const [task] = await database.insert(analysisTasks).values({
-      keyword: keyword.trim(),
-      status: 'pending',
-      totalArticles: 0,
-      analyzedArticles: 0,
-    }).returning();
+    if (action === 'update-progress') {
+      if (!taskId) {
+        return NextResponse.json({ error: '缺少任务ID' }, { status: 400 });
+      }
 
-    analyzeKeyword(task.id, keyword.trim());
+      await database.update(analysisTasks)
+        .set({
+          totalArticles: body.totalArticles,
+          analyzedArticles: body.analyzedArticles,
+          status: body.status || 'processing',
+          startedAt: body.startedAt ? new Date(body.startedAt) : undefined,
+          completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
+          errorMessage: body.errorMessage,
+        })
+        .where(eq(analysisTasks.id, taskId));
 
-    return NextResponse.json({ success: true, taskId: task.id });
-  }
-
-  if (action === 'update-progress') {
-    if (!taskId) {
-      return NextResponse.json({ error: '缺少任务ID' }, { status: 400 });
+      return NextResponse.json({ success: true });
     }
 
-    await database.update(analysisTasks)
-      .set({
-        totalArticles: body.totalArticles,
-        analyzedArticles: body.analyzedArticles,
-        status: body.status || 'processing',
-        startedAt: body.startedAt ? new Date(body.startedAt) : undefined,
-        completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
-        errorMessage: body.errorMessage,
-      })
-      .where(eq(analysisTasks.id, taskId));
+    if (action === 'save-articles') {
+      if (!taskId || !articles || !Array.isArray(articles)) {
+        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+      }
 
-    return NextResponse.json({ success: true });
-  }
+      for (const article of articles) {
+        await database.insert(analysisArticles).values({
+          taskId,
+          title: article.title,
+          author: article.author || '未知',
+          url: article.url || '',
+          summary: article.summary || '',
+          readCount: article.readCount || 0,
+          likeCount: article.likeCount || 0,
+          commentCount: article.commentCount || 0,
+          shareCount: article.shareCount || 0,
+          engagementRate: article.engagementRate || 0,
+          publishDate: article.publishDate,
+          content: article.content,
+          keywords: article.keywords || [],
+          analyzedAt: new Date(),
+        });
+      }
 
-  if (action === 'save-articles') {
-    if (!taskId || !articles || !Array.isArray(articles)) {
-      return NextResponse.json({ error: '参数错误' }, { status: 400 });
+      return NextResponse.json({ success: true });
     }
 
-    for (const article of articles) {
-      await database.insert(analysisArticles).values({
+    if (action === 'save-report') {
+      if (!taskId || !report) {
+        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+      }
+
+      const [savedReport] = await database.insert(insightReports).values({
         taskId,
-        title: article.title,
-        author: article.author || '未知',
-        url: article.url || '',
-        summary: article.summary || '',
-        readCount: article.readCount || 0,
-        likeCount: article.likeCount || 0,
-        commentCount: article.commentCount || 0,
-        shareCount: article.shareCount || 0,
-        engagementRate: article.engagementRate || 0,
-        publishDate: article.publishDate,
-        content: article.content,
-        keywords: article.keywords || [],
-        analyzedAt: new Date(),
-      });
+        topLikesArticles: report.topLikesArticles || [],
+        topEngagementArticles: report.topEngagementArticles || [],
+        wordCloud: report.wordCloud || [],
+        insights: report.insights || [],
+        topicSuggestions: report.topicSuggestions || [],
+      }).returning();
+
+      await database.update(analysisTasks)
+        .set({ status: 'completed', completedAt: new Date() })
+        .where(eq(analysisTasks.id, taskId));
+
+      return NextResponse.json({ success: true, report: savedReport });
     }
 
-    return NextResponse.json({ success: true });
-  }
+    if (action === 'save-article') {
+      const { title, content } = body;
+      if (!taskId || !title || !content) {
+        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+      }
 
-  if (action === 'save-report') {
-    if (!taskId || !report) {
-      return NextResponse.json({ error: '参数错误' }, { status: 400 });
+      const [article] = await database.insert(generatedArticles).values({
+        taskId,
+        title,
+        content,
+        summary: content.substring(0, 200),
+        wordCount: content.length,
+        status: 'draft',
+      }).returning();
+
+      return NextResponse.json({ success: true, article });
     }
 
-    const [savedReport] = await database.insert(insightReports).values({
-      taskId,
-      topLikesArticles: report.topLikesArticles || [],
-      topEngagementArticles: report.topEngagementArticles || [],
-      wordCloud: report.wordCloud || [],
-      insights: report.insights || [],
-      topicSuggestions: report.topicSuggestions || [],
-    }).returning();
-
-    await database.update(analysisTasks)
-      .set({ status: 'completed', completedAt: new Date() })
-      .where(eq(analysisTasks.id, taskId));
-
-    return NextResponse.json({ success: true, report: savedReport });
+    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+  } catch (error) {
+    console.error('Analysis API error:', error);
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '操作失败' }, { status: 500 });
   }
-
-  if (action === 'save-article') {
-    const { title, content } = body;
-    if (!taskId || !title || !content) {
-      return NextResponse.json({ error: '参数错误' }, { status: 400 });
-    }
-
-    const [article] = await database.insert(generatedArticles).values({
-      taskId,
-      title,
-      content,
-      summary: content.substring(0, 200),
-      wordCount: content.length,
-      status: 'draft',
-    }).returning();
-
-    return NextResponse.json({ success: true, article });
-  }
-
-  return NextResponse.json({ error: '未知操作' }, { status: 400 });
 }
 
 async function analyzeKeyword(taskId: number, keyword: string) {

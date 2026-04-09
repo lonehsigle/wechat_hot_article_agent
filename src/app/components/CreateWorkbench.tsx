@@ -291,7 +291,6 @@ const CreateWorkbench: React.FC<CreateWorkbenchProps> = ({
       }));
       
       if (firstArticle && firstArticle.readCount && firstArticle.readCount >= 10000) {
-        console.log(`[标题逻辑] 原标题阅读量${firstArticle.readCount}过万，置于首位`);
         const originalTitleOption: TitleOption = {
           text: firstArticle.title,
           type: 'benefit',
@@ -486,17 +485,7 @@ const CreateWorkbench: React.FC<CreateWorkbenchProps> = ({
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      
-      console.log('[内容生成] API返回数据:', {
-        success: data.success,
-        hasOpening: !!data.opening,
-        hasBody: !!data.body,
-        hasEnding: !!data.ending,
-        openingLength: data.opening?.length || 0,
-        bodyLength: data.body?.length || 0,
-        endingLength: data.ending?.length || 0,
-      });
-      
+
       setOpeningContent(data.opening || '');
       setArticleContent(data.body || '');
       setEndingContent(data.ending || '');

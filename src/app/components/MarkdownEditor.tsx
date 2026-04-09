@@ -1,7 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+const safeSanitize = (html: string): string => {
+  if (typeof window === 'undefined') return html;
+  try { return DOMPurify.sanitize(html); } catch { return html; }
+};
 
 interface MarkdownEditorProps {
   value: string;
@@ -31,6 +37,7 @@ export default function MarkdownEditor({
 }: MarkdownEditorProps) {
   const [mode, setMode] = useState<'edit' | 'preview' | 'split'>('split');
   const [localValue, setLocalValue] = useState(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setLocalValue(value);
@@ -42,7 +49,7 @@ export default function MarkdownEditor({
   }, [onChange]);
 
   const insertText = useCallback((prefix: string, suffix: string) => {
-    const textarea = document.getElementById('md-textarea') as HTMLTextAreaElement;
+    const textarea = textareaRef.current;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
@@ -122,7 +129,7 @@ export default function MarkdownEditor({
             padding: '4px 10px',
             border: 'none',
             borderRadius: '4px',
-            backgroundColor: mode === 'edit' ? '#3b82f6' : '#e5e7eb',
+            backgroundColor: mode === 'edit' ? '#E8652D' : '#e5e7eb',
             color: mode === 'edit' ? '#fff' : '#374151',
             cursor: 'pointer',
             fontSize: '12px',
@@ -136,7 +143,7 @@ export default function MarkdownEditor({
             padding: '4px 10px',
             border: 'none',
             borderRadius: '4px',
-            backgroundColor: mode === 'preview' ? '#3b82f6' : '#e5e7eb',
+            backgroundColor: mode === 'preview' ? '#E8652D' : '#e5e7eb',
             color: mode === 'preview' ? '#fff' : '#374151',
             cursor: 'pointer',
             fontSize: '12px',
@@ -150,7 +157,7 @@ export default function MarkdownEditor({
             padding: '4px 10px',
             border: 'none',
             borderRadius: '4px',
-            backgroundColor: mode === 'split' ? '#3b82f6' : '#e5e7eb',
+            backgroundColor: mode === 'split' ? '#E8652D' : '#e5e7eb',
             color: mode === 'split' ? '#fff' : '#374151',
             cursor: 'pointer',
             fontSize: '12px',
@@ -169,7 +176,7 @@ export default function MarkdownEditor({
         {/* 编辑框 */}
         {(mode === 'edit' || mode === 'split') && (
           <textarea
-            id="md-textarea"
+            ref={textareaRef}
             value={localValue}
             onChange={(e) => handleChange(e.target.value)}
             placeholder={placeholder}
@@ -200,7 +207,7 @@ export default function MarkdownEditor({
           >
             {localValue ? (
               <div 
-                dangerouslySetInnerHTML={{ __html: renderPreview(localValue) }}
+                dangerouslySetInnerHTML={{ __html: safeSanitize(renderPreview(localValue)) }}
                 className="markdown-preview"
               />
             ) : (
@@ -222,7 +229,7 @@ export default function MarkdownEditor({
         .markdown-preview blockquote { 
           margin: 12px 0; 
           padding: 8px 16px; 
-          border-left: 4px solid #3b82f6; 
+          border-left: 4px solid #E8652D; 
           background-color: #f3f4f6; 
           color: #4b5563;
         }
@@ -246,7 +253,7 @@ export default function MarkdownEditor({
           padding: 0; 
           color: inherit;
         }
-        .markdown-preview a { color: #3b82f6; text-decoration: none; }
+        .markdown-preview a { color: #E8652D; text-decoration: none; }
         .markdown-preview a:hover { text-decoration: underline; }
         .markdown-preview img { 
           max-width: 100%; 

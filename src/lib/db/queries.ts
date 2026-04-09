@@ -1,4 +1,5 @@
-import { db } from './index';
+import { db, getSqlite } from './index';
+import { encrypt } from './crypto';
 import { monitorCategories, contents, reports, insights, topics, wechatAccounts, llmConfigs, cacheRecords, publishedArticles, articleStats, articleStatsDaily, writingTechniques, techniqueCategories } from './schema';
 import { eq, desc, lt, asc, and } from 'drizzle-orm';
 
@@ -165,8 +166,17 @@ export async function deleteWechatAccount(id: number) {
 
 export async function setDefaultWechatAccount(id: number) {
   const database = db();
-  await database.update(wechatAccounts).set({ isDefault: false });
-  await database.update(wechatAccounts).set({ isDefault: true, updatedAt: new Date() }).where(eq(wechatAccounts.id, id));
+  const sqlite = getSqlite();
+  try {
+    sqlite.exec('BEGIN');
+    await database.update(wechatAccounts).set({ isDefault: false });
+    await database.update(wechatAccounts).set({ isDefault: true, updatedAt: new Date() }).where(eq(wechatAccounts.id, id));
+    sqlite.exec('COMMIT');
+  } catch (error) {
+    sqlite.exec('ROLLBACK');
+    console.error('设置默认微信账号失败:', error);
+    throw error;
+  }
 }
 
 export async function getLLMConfig(): Promise<{
@@ -192,11 +202,12 @@ export async function saveLLMConfig(data: { provider: string; apiKey: string; mo
   const database = db();
   const existing = await getLLMConfig();
   const now = new Date();
-  
+  const encryptedApiKey = encrypt(data.apiKey);
+
   if (existing) {
     await database.update(llmConfigs).set({
       provider: data.provider,
-      apiKey: data.apiKey,
+      apiKey: encryptedApiKey,
       model: data.model,
       baseUrl: data.baseUrl ?? null,
       updatedAt: now,
@@ -204,7 +215,7 @@ export async function saveLLMConfig(data: { provider: string; apiKey: string; mo
   } else {
     await database.insert(llmConfigs).values({
       provider: data.provider,
-      apiKey: data.apiKey,
+      apiKey: encryptedApiKey,
       model: data.model,
       baseUrl: data.baseUrl ?? null,
       createdAt: now,

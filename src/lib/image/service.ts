@@ -50,25 +50,14 @@ async function getMiniMaxConfig() {
 export async function generateImage(options: ImageGenerationOptions): Promise<ImageResult[]> {
   const config = await getMiniMaxConfig();
   
-  console.log('[generateImage] API Key 前缀:', config.apiKey.substring(0, 10) + '...');
-  console.log('[generateImage] API Key 长度:', config.apiKey.length);
-  
   const endpoint = 'https://api.minimaxi.com/v1/image_generation';
-  console.log('[generateImage] 请求端点:', endpoint);
-  console.log('[generateImage] 请求参数:', { 
-    model: 'image-01', 
-    prompt: options.prompt.substring(0, 50) + '...', 
-    aspect_ratio: options.aspectRatio || '16:9' 
-  });
-  
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.log('[generateImage] 请求超时，正在中止...');
     controller.abort();
   }, 60000);
-  
+
   try {
-    console.log('[generateImage] 开始发送请求...');
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -86,8 +75,6 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     });
 
     clearTimeout(timeoutId);
-    console.log('[generateImage] 响应状态:', response.status, response.statusText);
-    console.log('[generateImage] 响应头:', JSON.stringify(Object.fromEntries(response.headers.entries())));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -114,20 +101,13 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
         status_msg: string;
       };
     };
-    
-    console.log('[generateImage] 响应数据结构:', Object.keys(data));
-    console.log('[generateImage] base_resp:', JSON.stringify(data.base_resp));
-  
+
     if (data.base_resp?.status_code !== 0) {
       throw new Error(data.base_resp?.status_msg || '图片生成失败');
     }
 
     const images = data.data?.image_base64 || [];
-    console.log('[generateImage] 成功生成图片数量:', images.length);
-    if (images.length > 0) {
-      console.log('[generateImage] 第一张图片 base64 长度:', images[0].length);
-    }
-  
+
     const dimensions = getAspectRatioDimensions(options.aspectRatio || '16:9');
   
     return images.map((base64, index) => ({
@@ -178,17 +158,17 @@ function getAspectRatioDimensions(aspectRatio: string): { width: number; height:
 
 export async function generateArticleImages(options: ArticleImageGenerationOptions): Promise<ImageResult[]> {
   const { title, content, imageCount = 3 } = options;
-  
+
   const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 50);
-  
+
   const positions: Array<{
     percentage: number;
     context: string;
     paragraphIndex: number;
   }> = [];
-  
+
   const totalParagraphs = paragraphs.length;
-  
+
   if (totalParagraphs > 0) {
     const positionPercentages = [0.3, 0.6, 0.9];
     for (let i = 0; i < Math.min(imageCount, positionPercentages.length); i++) {
@@ -202,12 +182,9 @@ export async function generateArticleImages(options: ArticleImageGenerationOptio
     }
   }
 
-  const generatedImages: ImageResult[] = [];
-
-  for (let i = 0; i < positions.length; i++) {
-    const pos = positions[i];
-    
-    const promptText = `请根据以下文章片段，生成一个适合作为配图的英文prompt。要求：
+  const results = await Promise.allSettled(
+    positions.map(async (pos) => {
+      const promptText = `请根据以下文章片段，生成一个适合作为配图的英文prompt。要求：
 1. 图片要与内容主题相关
 2. 风格要专业、现代、适合公众号文章
 3. 不要出现文字
@@ -219,33 +196,33 @@ ${pos.context}
 
 请直接输出英文prompt，不要有任何解释。`;
 
-    let imagePrompt = `Professional illustration for article about ${title}, modern style, clean design, no text`;
-    
-    try {
-      imagePrompt = await callLLMWithPrompt(promptText, 0.7);
-    } catch (error) {
-      console.error('生成图片prompt失败:', error);
-    }
+      let imagePrompt = `Professional illustration for article about ${title}, modern style, clean design, no text`;
 
-    try {
-      const images = await generateImage({
-        prompt: imagePrompt,
-        aspectRatio: '16:9',
-      });
-      
-      if (images.length > 0) {
-        generatedImages.push(images[0]);
+      try {
+        imagePrompt = await callLLMWithPrompt(promptText, 0.7);
+      } catch (error) {
+        console.error('生成图片prompt失败:', error);
       }
-    } catch (error) {
-      console.error('生成图片失败:', error);
-    }
 
-    if (i < positions.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
+      try {
+        const images = await generateImage({
+          prompt: imagePrompt,
+          aspectRatio: '16:9',
+        });
 
-  return generatedImages;
+        return images.length > 0 ? images[0] : null;
+      } catch (error) {
+        console.error('生成图片失败:', error);
+        return null;
+      }
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<ImageResult> =>
+      r.status === 'fulfilled' && r.value !== null
+    )
+    .map(r => r.value);
 }
 
 export function getKeywordsFromTitle(title: string): string[] {

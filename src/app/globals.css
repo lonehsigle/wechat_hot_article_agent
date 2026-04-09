@@ -132,7 +132,7 @@ input, textarea, select, button {
   margin: 16px 0;
   padding: 12px 16px;
   background-color: #f9fafb;
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid #E8652D;
   color: #4b5563;
 }
 
@@ -147,7 +147,7 @@ input, textarea, select, button {
 }
 
 .wechat-article-content a {
-  color: #3b82f6;
+  color: #E8652D;
   text-decoration: none;
 }
 

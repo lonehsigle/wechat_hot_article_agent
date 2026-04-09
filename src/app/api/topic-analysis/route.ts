@@ -61,15 +61,11 @@ async function processWordCloudWithAI(basicWordCloud: Array<{ word: string; coun
   const topWords = basicWordCloud.slice(0, 50);
   
   const promptTemplate = await getPromptTemplate('wordcloud-analysis');
-  console.log('[WordCloud AI] Prompt template length:', promptTemplate.length);
-  console.log('[WordCloud AI] Prompt template preview:', promptTemplate.substring(0, 200));
-  
+
   const wordsStr = topWords.map(w => `${w.word}(${w.count}次)`).join('、');
   const systemPrompt = promptTemplate
     .replace(/{words}/gi, wordsStr)
     .replace(/{WORDS}/g, wordsStr);
-  
-  console.log('[WordCloud AI] Final prompt preview:', systemPrompt.substring(0, 300));
 
   if (!systemPrompt.trim()) {
     console.error('Word cloud prompt is empty, using fallback');
@@ -85,15 +81,10 @@ async function processWordCloudWithAI(basicWordCloud: Array<{ word: string; coun
       { role: 'user', content: systemPrompt },
     ], { maxTokens: 4096, temperature: 0.3 });
 
-    console.log('[WordCloud AI] Raw response:', response.content.substring(0, 500));
-    
     const jsonMatch = response.content.match(/\[[\s\S]*\]/);
-    console.log('[WordCloud AI] JSON match found:', !!jsonMatch);
-    
+
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      console.log('[WordCloud AI] Parsed result count:', parsed.length);
-      console.log('[WordCloud AI] First item:', JSON.stringify(parsed[0]));
       return parsed;
     }
   } catch (error) {
@@ -350,8 +341,6 @@ async function generateContentAnalysisReport(
       { role: 'user', content: prompt },
     ], { maxTokens: 4096, temperature: 0.5 });
 
-    console.log('[Analysis Report] Raw response:', response.content.substring(0, 500));
-    
     const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

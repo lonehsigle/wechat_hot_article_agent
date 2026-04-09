@@ -2,33 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { materialLibrary } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type');
-  const topicId = searchParams.get('topicId');
-  const unused = searchParams.get('unused');
+  try {
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type');
+    const topicId = searchParams.get('topicId');
+    const unused = searchParams.get('unused');
 
-  const database = db();
+    const database = db();
 
-  const conditions = [];
-  if (type) {
-    conditions.push(eq(materialLibrary.type, type));
+    const conditions = [];
+    if (type) {
+      conditions.push(eq(materialLibrary.type, type));
+    }
+    if (topicId) {
+      conditions.push(eq(materialLibrary.topicId, parseInt(topicId)));
+    }
+    if (unused === 'true') {
+      conditions.push(eq(materialLibrary.isUsed, false));
+    }
+
+    const materials = await database
+      .select()
+      .from(materialLibrary)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(materialLibrary.createdAt));
+
+    return successResponse(materials);
+  } catch (error) {
+    console.error('Material API error:', error);
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
-  if (topicId) {
-    conditions.push(eq(materialLibrary.topicId, parseInt(topicId)));
-  }
-  if (unused === 'true') {
-    conditions.push(eq(materialLibrary.isUsed, false));
-  }
-
-  const materials = await database
-    .select()
-    .from(materialLibrary)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(materialLibrary.createdAt));
-
-  return NextResponse.json(materials);
 }
 
 export async function POST(request: NextRequest) {
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       }).returning();
 
-      return NextResponse.json(material);
+      return successResponse(material);
     }
 
     if (action === 'batch-create') {
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
         }))
       ).returning();
 
-      return NextResponse.json({ count: inserted.length });
+      return successResponse({ count: inserted.length });
     }
 
     if (action === 'mark-used') {
@@ -98,16 +104,13 @@ export async function POST(request: NextRequest) {
         .where(eq(materialLibrary.id, data.id))
         .returning();
 
-      return NextResponse.json(material);
+      return successResponse(material);
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    return errorResponse('Unknown action', 400);
   } catch (error) {
     console.error('Material API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '操作失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
 }
 
@@ -127,13 +130,10 @@ export async function PUT(request: NextRequest) {
       .where(eq(materialLibrary.id, id))
       .returning();
 
-    return NextResponse.json(material);
+    return successResponse(material);
   } catch (error) {
     console.error('Material API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '更新失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '更新失败');
   }
 }
 
@@ -143,18 +143,15 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+      return errorResponse('Missing id', 400);
     }
 
     const database = db();
     await database.delete(materialLibrary).where(eq(materialLibrary.id, parseInt(id)));
 
-    return NextResponse.json({ success: true });
+    return successResponse(null);
   } catch (error) {
     console.error('Material API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '删除失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '删除失败');
   }
 }

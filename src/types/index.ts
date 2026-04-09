@@ -1,16 +1,17 @@
+// src/types/index.ts - 从 page.tsx 提取的共享类型
+
 export interface MonitorCategory {
-  id: number;
+  id: string;
   name: string;
   platforms: string[];
   keywords: string[];
   creators: string[];
-  createdAt: number;
-  updatedAt: number;
+  contents: Content[];
+  reports: Report[];
 }
 
 export interface Content {
-  id: number;
-  categoryId?: number;
+  id: string;
   platform: string;
   title: string;
   author: string;
@@ -19,45 +20,75 @@ export interface Content {
   comments: number;
   shares: number;
   url: string;
-  fetchedAt: number;
 }
 
 export interface Report {
-  id: number;
-  categoryId?: number;
+  id: string;
   date: string;
   title: string;
   summary: string;
-  createdAt: number;
+  insights: Insight[];
+  topics: Topic[];
 }
 
 export interface Insight {
-  id: number;
-  reportId: number;
-  type: string;
+  type: 'trend' | 'hot' | 'recommendation';
   content: string;
-  createdAt: number;
 }
 
 export interface Topic {
-  id: number;
-  reportId: number;
+  id: string;
   title: string;
   description: string;
   reason: string;
   potential: string;
-  createdAt: number;
+}
+
+export interface SelectedTopic {
+  id: string;
+  title: string;
+  source: string;
+  likes: number;
+  selected: boolean;
+}
+
+export interface SearchResult {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+  description: string;
+  photographer: string;
+  source: string;
+}
+
+export interface ArticleDraft {
+  topicId: string;
+  title: string;
+  content: string;
+  coverImage: string;
+  images: string[];
+  status: 'draft' | 'generating' | 'writing' | 'humanizing' | 'images' | 'uploading' | 'done' | 'error';
+  progress: number;
+  selectedCover?: string;
+  searchResults?: SearchResult[];
 }
 
 export interface WechatAccount {
-  id: number;
+  id: string;
   name: string;
   appId: string;
   appSecret: string;
   authorName: string;
   isDefault: boolean;
-  createdAt: number;
-  updatedAt: number;
+  targetAudience?: string;
+  readerPersona?: string;
+  contentStyle?: string;
+  mainTopics?: string[];
+  tonePreference?: string;
+}
+
+export interface ImageSourceConfig {
+  aiGenerated: boolean;
 }
 
 export interface LLMConfig {
@@ -72,51 +103,21 @@ export interface PublishedArticle {
   title: string;
   content: string;
   coverImage: string;
-  images: string[];
-  wechatAccountId?: number;
-  topicId?: number;
-  publishStatus: 'draft' | 'published' | 'failed';
-  publishTime?: number;
-  wechatMediaId?: string;
-  wechatArticleUrl?: string;
-  createdAt: number;
-  updatedAt: number;
+  wechatAccountId: number | null;
+  publishStatus: string;
+  publishTime: Date | null;
+  wechatArticleUrl: string | null;
+  createdAt: Date | null;
 }
 
-export interface ArticleStats {
+export interface ArticleStat {
   id: number;
   articleId: number;
-  recordTime: number;
+  recordTime: Date;
   readCount: number;
   likeCount: number;
   commentCount: number;
   shareCount: number;
-  collectCount: number;
   readGrowth: number;
   likeGrowth: number;
-  commentGrowth: number;
-  shareGrowth: number;
-}
-
-export interface ArticleStatsDaily {
-  id: number;
-  articleId: number;
-  date: string;
-  totalRead: number;
-  totalLike: number;
-  totalComment: number;
-  totalShare: number;
-  totalCollect: number;
-  dailyReadGrowth: number;
-  dailyLikeGrowth: number;
-  dailyCommentGrowth: number;
-  dailyShareGrowth: number;
-}
-
-export interface CacheRecord {
-  id: number;
-  cacheKey: string;
-  cacheData: unknown;
-  fetchedAt: number;
-  expiresAt: number;
 }

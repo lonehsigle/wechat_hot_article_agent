@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, streamLLM, generateWithTechniques, checkAIContent, removeAIFlavor, humanizeContent } from '@/lib/llm/service';
 import { getTechniquesForPrompt } from '@/lib/db/queries';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,30 +11,30 @@ export async function POST(request: NextRequest) {
     if (action === 'generate') {
       const stageTechniques = await getTechniquesForPrompt(stage);
       const result = await generateWithTechniques(stage, topic, techniques || stageTechniques);
-      return NextResponse.json({ content: result });
+      return successResponse({ content: result });
     }
 
     if (action === 'check-ai') {
       const result = await checkAIContent(content);
-      return NextResponse.json(result);
+      return successResponse(result);
     }
 
     if (action === 'remove-ai') {
       const result = await removeAIFlavor(content, { style: style || 'casual' });
-      return NextResponse.json({ content: result });
+      return successResponse({ content: result });
     }
 
     if (action === 'humanize') {
       const result = await humanizeContent(content);
-      return NextResponse.json(result);
+      return successResponse(result);
     }
 
     if (action === 'generate-article') {
       const { title, style, keywords, length } = body;
-      
+
       const stages = ['选题', '标题', '开头', '正文', '结尾'];
       const allTechniques: Record<string, Array<{ title: string; content: string; formulas?: string | null; examples?: string | null }>> = {};
-      
+
       for (const s of stages) {
         allTechniques[s] = await getTechniquesForPrompt(s);
       }
@@ -94,7 +95,7 @@ ${allTechniques['结尾'].map(t => `${t.title}：${t.content}`).join('\n')}
       }
 
       const result = await callLLM([{ role: 'user', content: systemPrompt }]);
-      return NextResponse.json({ content: result.content });
+      return successResponse({ content: result.content });
     }
 
     if (action === 'generate-stage') {
@@ -159,12 +160,12 @@ ${previousContent}
       const userPrompt = stagePrompts[currentStage] || `请为"${currentStage}"阶段生成内容：\n\n${context}`;
 
       const result = await generateWithTechniques(currentStage, userPrompt, stageTechniques);
-      return NextResponse.json({ content: result });
+      return successResponse({ content: result });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return errorResponse('未知操作', 400);
   } catch (error) {
     console.error('Generate API error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return errorResponse(error instanceof Error ? error.message : String(error));
   }
 }

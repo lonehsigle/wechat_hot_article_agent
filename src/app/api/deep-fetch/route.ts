@@ -7,24 +7,22 @@ import {
 } from '@/lib/crawler/service';
 import { db } from '@/lib/db';
 import { materialLibrary } from '@/lib/db/schema';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
 
   if (!url) {
-    return NextResponse.json({ error: 'URL参数缺失' }, { status: 400 });
+    return errorResponse('URL参数缺失', 400);
   }
 
   try {
     const content = await fetchDeepContent(url);
-    return NextResponse.json(content);
+    return successResponse(content);
   } catch (error) {
     console.error('Deep fetch error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '抓取失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '抓取失败');
   }
 }
 
@@ -39,7 +37,7 @@ export async function POST(request: NextRequest) {
       if (saveToLibrary) {
         const materialData = formatContentForMaterial(content);
         const database = db();
-        
+
         const [material] = await database.insert(materialLibrary).values({
           ...materialData,
           isUsed: false,
@@ -47,14 +45,14 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date(),
         }).returning();
 
-        return NextResponse.json({
+        return successResponse({
           ...content,
           materialId: material.id,
           saved: true,
         });
       }
 
-      return NextResponse.json(content);
+      return successResponse(content);
     }
 
     if (action === 'batch-fetch' && urls) {
@@ -63,7 +61,7 @@ export async function POST(request: NextRequest) {
       if (saveToLibrary) {
         const database = db();
         const materials = contents.map(c => formatContentForMaterial(c));
-        
+
         const inserted = await database.insert(materialLibrary).values(
           materials.map(m => ({
             ...m,
@@ -73,19 +71,19 @@ export async function POST(request: NextRequest) {
           }))
         ).returning();
 
-        return NextResponse.json({
+        return successResponse({
           contents,
           savedCount: inserted.length,
         });
       }
 
-      return NextResponse.json({ contents });
+      return successResponse({ contents });
     }
 
     if (action === 'preview' && url) {
       const content = await fetchDeepContent(url);
-      
-      return NextResponse.json({
+
+      return successResponse({
         url: content.url,
         title: content.title,
         summary: content.summary,
@@ -96,12 +94,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return errorResponse('未知操作', 400);
   } catch (error) {
     console.error('Deep fetch API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '操作失败' },
-      { status: 500 }
-    );
+    return errorResponse(error instanceof Error ? error.message : '操作失败');
   }
 }

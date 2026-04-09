@@ -67,21 +67,15 @@ async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9')
   }
 
   const config = await getMiniMaxConfig();
-  console.log('[图片生成] API Key 前缀:', config.apiKey.substring(0, 10) + '...');
-  console.log('[图片生成] API Key 长度:', config.apiKey.length);
-  
+
   const endpoint = 'https://api.minimaxi.com/v1/image_generation';
-  console.log('[图片生成] 请求端点:', endpoint);
-  console.log('[图片生成] 请求参数:', { model: 'image-01', prompt: prompt.substring(0, 50) + '...', aspect_ratio: aspectRatio });
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.log('[图片生成] 请求超时，正在中止...');
     controller.abort();
   }, 60000);
-  
+
   try {
-    console.log('[图片生成] 开始发送请求...');
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -98,8 +92,6 @@ async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9')
     });
 
     clearTimeout(timeoutId);
-    console.log('[图片生成] 响应状态:', response.status, response.statusText);
-    console.log('[图片生成] 响应头:', JSON.stringify(Object.fromEntries(response.headers.entries())));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -119,20 +111,14 @@ async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9')
     }
 
     const data = await response.json() as ImageGenerationResponse;
-    console.log('[图片生成] 响应数据结构:', Object.keys(data));
-    console.log('[图片生成] base_resp:', JSON.stringify(data.base_resp));
-    
+
     if (data.base_resp?.status_code !== 0) {
       console.error('[图片生成] 业务错误:', data.base_resp);
       throw new Error(data.base_resp?.status_msg || 'Image generation failed');
     }
 
     const images = data.data?.image_base64 || [];
-    console.log('[图片生成] 成功生成图片数量:', images.length);
-    if (images.length > 0) {
-      console.log('[图片生成] 第一张图片 base64 长度:', images[0].length);
-    }
-    
+
     return NextResponse.json({ 
       success: true, 
       images: images,
@@ -173,14 +159,9 @@ async function handleGenerateArticleImages(content: string, title: string, image
     return NextResponse.json({ error: 'content is required' }, { status: 400 });
   }
 
-  console.log('[文章配图] 开始生成，标题:', title, '图片数量:', imageCount);
-  
   const config = await getMiniMaxConfig();
-  console.log('[文章配图] API Key 前缀:', config.apiKey.substring(0, 10) + '...');
-  console.log('[文章配图] API Key 长度:', config.apiKey.length);
-  
+
   const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 50);
-  console.log('[文章配图] 段落数量:', paragraphs.length);
   
   const positions = [];
   const totalParagraphs = paragraphs.length;
@@ -198,8 +179,6 @@ async function handleGenerateArticleImages(content: string, title: string, image
     }
   }
 
-  console.log('[文章配图] 生成位置:', positions.length);
-
   const generatedImages: Array<{
     position: number;
     context: string;
@@ -211,8 +190,7 @@ async function handleGenerateArticleImages(content: string, title: string, image
 
   for (let i = 0; i < positions.length; i++) {
     const pos = positions[i];
-    console.log(`[文章配图] 处理第 ${i + 1}/${positions.length} 张图片...`);
-    
+
     const promptText = `请根据以下文章片段，生成一个适合作为配图的英文prompt。要求：
 1. 图片要与内容主题相关
 2. 风格要专业、现代、适合公众号文章
@@ -228,24 +206,17 @@ ${pos.context}
     let imagePrompt = `Professional illustration for article about ${title}, modern style, clean design, no text`;
     
     try {
-      console.log(`[文章配图] 生成第 ${i + 1} 张图片的 prompt...`);
       imagePrompt = await callLLMWithPrompt(promptText, 0.7);
-      console.log(`[文章配图] 生成的 prompt:`, imagePrompt.substring(0, 100) + '...');
     } catch (error) {
       console.error('[文章配图] 生成图片prompt失败:', error);
-      console.log('[文章配图] 使用默认 prompt');
     }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      console.log(`[文章配图] 第 ${i + 1} 张图片请求超时，正在中止...`);
       controller.abort();
     }, 60000);
 
     try {
-      console.log(`[文章配图] 调用 MiniMax 图片生成 API...`);
-      console.log(`[文章配图] 请求端点: https://api.minimaxi.com/v1/image_generation`);
-      
       const imageResponse = await fetch('https://api.minimaxi.com/v1/image_generation', {
         method: 'POST',
         headers: {
@@ -262,13 +233,10 @@ ${pos.context}
       });
 
       clearTimeout(timeoutId);
-      console.log(`[文章配图] API 响应状态:`, imageResponse.status, imageResponse.statusText);
 
       if (imageResponse.ok) {
         const imageData = await imageResponse.json() as ImageGenerationResponse;
-        console.log(`[文章配图] API 响应结构:`, Object.keys(imageData));
-        console.log(`[文章配图] base_resp:`, JSON.stringify(imageData.base_resp));
-        
+
         if (imageData.base_resp?.status_code !== 0) {
           const errorMsg = imageData.base_resp?.status_msg || '未知错误';
           console.error(`[文章配图] 第 ${i + 1} 张图片业务错误:`, errorMsg);
@@ -280,7 +248,6 @@ ${pos.context}
             imageBase64: imageData.data.image_base64[0],
             prompt: imagePrompt,
           });
-          console.log(`[文章配图] 第 ${i + 1} 张图片生成成功，base64 长度:`, imageData.data.image_base64[0].length);
         } else {
           console.error(`[文章配图] 第 ${i + 1} 张图片生成失败: 无图片数据`, imageData);
           errors.push(`第 ${i + 1} 张图片: 无图片数据返回`);
@@ -311,14 +278,8 @@ ${pos.context}
     }
 
     if (i < positions.length - 1) {
-      console.log('[文章配图] 等待 1 秒后继续...');
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-  }
-
-  console.log(`[文章配图] 完成，共生成 ${generatedImages.length} 张图片`);
-  if (errors.length > 0) {
-    console.log(`[文章配图] 错误列表:`, errors);
   }
 
   if (generatedImages.length === 0 && errors.length > 0) {

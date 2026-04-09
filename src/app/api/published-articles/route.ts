@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublishedArticles, getPublishedArticleById, createPublishedArticle, updatePublishedArticle, getArticleStats, createArticleStats } from '@/lib/db/queries';
 import { initDatabase } from '@/lib/db';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,23 +9,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const stats = searchParams.get('stats');
-    
+
     if (id && stats === 'true') {
       const articleStats = await getArticleStats(parseInt(id));
-      return NextResponse.json(articleStats);
+      return successResponse(articleStats);
     }
-    
+
     if (id) {
       const article = await getPublishedArticleById(parseInt(id));
-      return NextResponse.json(article);
+      return successResponse(article);
     }
-    
+
     const limit = parseInt(searchParams.get('limit') || '50');
     const articles = await getPublishedArticles(limit);
-    return NextResponse.json(articles);
+    return successResponse(articles);
   } catch (error) {
     console.error('Error fetching published articles:', error);
-    return NextResponse.json({ error: 'Failed to fetch published articles' }, { status: 500 });
+    return errorResponse('Failed to fetch published articles');
   }
 }
 
@@ -32,17 +33,17 @@ export async function POST(request: NextRequest) {
   try {
     initDatabase();
     const body = await request.json();
-    
+
     if (body.stats) {
       const stats = await createArticleStats(body.stats);
-      return NextResponse.json(stats);
+      return successResponse(stats);
     }
-    
+
     const article = await createPublishedArticle(body);
-    return NextResponse.json(article);
+    return successResponse(article);
   } catch (error) {
     console.error('Error creating published article:', error);
-    return NextResponse.json({ error: 'Failed to create published article' }, { status: 500 });
+    return errorResponse('Failed to create published article');
   }
 }
 
@@ -52,9 +53,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
     const article = await updatePublishedArticle(id, data);
-    return NextResponse.json(article);
+    return successResponse(article);
   } catch (error) {
     console.error('Error updating published article:', error);
-    return NextResponse.json({ error: 'Failed to update published article' }, { status: 500 });
+    return errorResponse('Failed to update published article');
   }
 }
