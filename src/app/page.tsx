@@ -6,6 +6,7 @@ import PendingPublishPage from './components/PendingPublishPage';
 import MarkdownEditor from './components/MarkdownEditor';
 import OptimizationLoop from './components/OptimizationLoop';
 import { htmlToMarkdown, markdownToHtml } from '@/lib/utils/html-markdown';
+import HotTopicsPage from './page_hot_topics';
 
 interface MonitorCategory {
   id: string;
@@ -87,6 +88,11 @@ interface WechatAccount {
   appSecret: string;
   authorName: string;
   isDefault: boolean;
+  targetAudience?: string;
+  readerPersona?: string;
+  contentStyle?: string;
+  mainTopics?: string[];
+  tonePreference?: string;
 }
 
 interface ImageSourceConfig {
@@ -1191,901 +1197,6 @@ function CrawlerPage() {
                 }}
               >
                 添加
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HotTopicsPage() {
-  const [topics, setTopics] = useState<Array<{
-    id: number;
-    platform: string;
-    title: string;
-    description: string | null;
-    url: string | null;
-    hotValue: number | null;
-    rank: number | null;
-    category: string | null;
-    tags: string[] | null;
-    trendDirection: string | null;
-    predictedGrowth: number | null;
-    isBlackHorse: boolean | null;
-  }>>([]);
-  const [blackHorses, setBlackHorses] = useState<typeof topics>([]);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
-  const [selectedTopics, setSelectedTopics] = useState<Set<number>>(new Set());
-  const [rewriting, setRewriting] = useState(false);
-  const [rewriteStyle, setRewriteStyle] = useState('热点评论');
-  const [showRewriteModal, setShowRewriteModal] = useState(false);
-  const [rewriteResult, setRewriteResult] = useState<{
-    title: string;
-    content: string;
-    aiScore: number;
-    humanScore: number;
-    wordCount: number;
-  } | null>(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [platformCookies, setPlatformCookies] = useState<Record<string, string>>({});
-  const [currentCookieInput, setCurrentCookieInput] = useState('');
-  const [activeConfigPlatform, setActiveConfigPlatform] = useState('weibo');
-  const [collectingTopicId, setCollectingTopicId] = useState<number | null>(null);
-  const [collectingMessage, setCollectingMessage] = useState<string>('');
-  const [collectedTopicIds, setCollectedTopicIds] = useState<Set<number>>(new Set());
-
-  const hotPlatforms = [
-    { id: 'weibo', name: '微博', icon: '📱', color: '#ff8200' },
-    { id: 'douyin', name: '抖音', icon: '🎵', color: '#000000' },
-    { id: 'xiaohongshu', name: '小红书', icon: '📕', color: '#ff2442' },
-    { id: 'zhihu', name: '知乎', icon: '💡', color: '#0066ff' },
-    { id: 'baidu', name: '百度', icon: '🔍', color: '#2932e1' },
-  ];
-
-  const getHotPlatformInfo = (platformId: string) => {
-    return hotPlatforms.find(p => p.id === platformId) || hotPlatforms[0];
-  };
-
-  useEffect(() => {
-    loadTopics();
-    loadBlackHorses();
-  }, [selectedPlatform]);
-
-  const loadTopics = async () => {
-    setLoading(true);
-    try {
-      const url = selectedPlatform === 'all' 
-        ? '/api/hot-topics?action=list&limit=50'
-        : `/api/hot-topics?action=list&platform=${selectedPlatform}&limit=50`;
-      const res = await fetch(url);
-      const data = await res.json();
-      setTopics(data);
-    } catch (error) {
-      console.error('Failed to load topics:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadBlackHorses = async () => {
-    try {
-      const res = await fetch('/api/hot-topics?action=black-horses');
-      const data = await res.json();
-      setBlackHorses(data);
-    } catch (error) {
-      console.error('Failed to load black horses:', error);
-    }
-  };
-
-  const fetchAllPlatforms = async () => {
-    setFetching(true);
-    try {
-      const res = await fetch('/api/hot-topics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'fetch-all',
-          cookies: platformCookies,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const message = data.isRealData 
-          ? `成功获取 ${data.total} 条真实热点数据`
-          : `演示数据：获取 ${data.total} 条热点。${data.message || '配置 Cookie 后可获取真实数据'}`;
-        alert(message);
-        loadTopics();
-        loadBlackHorses();
-      }
-    } catch (error) {
-      console.error('Failed to fetch:', error);
-      alert('获取失败');
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  const toggleTopicSelection = (topicId: number) => {
-    const newSelected = new Set(selectedTopics);
-    if (newSelected.has(topicId)) {
-      newSelected.delete(topicId);
-    } else {
-      newSelected.add(topicId);
-    }
-    setSelectedTopics(newSelected);
-  };
-
-  const selectAllVisible = () => {
-    const allIds = topics.map(t => t.id);
-    setSelectedTopics(new Set(allIds));
-  };
-
-  const clearSelection = () => {
-    setSelectedTopics(new Set());
-  };
-
-  const collectTopicMaterials = async (topic: typeof topics[0]) => {
-    setCollectingTopicId(topic.id);
-    setCollectingMessage('正在搜索相关文章...');
-
-    try {
-      const res = await fetch('/api/hot-topic-collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'collect-single',
-          data: { topic },
-        }),
-      });
-
-      const data = await res.json();
-      
-      if (data.success) {
-        setCollectingMessage(`成功采集 ${data.materials.length} 条素材`);
-        setCollectedTopicIds(prev => new Set([...prev, topic.id]));
-        setTimeout(() => {
-          setCollectingTopicId(null);
-          setCollectingMessage('');
-        }, 2000);
-      } else {
-        alert(data.message || '采集失败');
-        setCollectingTopicId(null);
-        setCollectingMessage('');
-      }
-    } catch (error) {
-      console.error('Collect materials failed:', error);
-      alert('采集失败，请检查网络连接');
-      setCollectingTopicId(null);
-      setCollectingMessage('');
-    }
-  };
-
-  const collectBatchMaterials = async () => {
-    if (selectedTopics.size === 0) {
-      alert('请先选择要采集的热点');
-      return;
-    }
-
-    const selectedTopicsList = topics.filter(t => selectedTopics.has(t.id));
-    setCollectingMessage(`正在采集 ${selectedTopicsList.length} 个热点的素材...`);
-
-    try {
-      const res = await fetch('/api/hot-topic-collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'collect-batch',
-          data: { topics: selectedTopicsList },
-        }),
-      });
-
-      const data = await res.json();
-      
-      if (data.success) {
-        alert(data.message);
-        const newCollectedIds = new Set(collectedTopicIds);
-        selectedTopicsList.forEach(t => newCollectedIds.add(t.id));
-        setCollectedTopicIds(newCollectedIds);
-      } else {
-        alert('批量采集失败');
-      }
-    } catch (error) {
-      console.error('Batch collect failed:', error);
-      alert('批量采集失败');
-    } finally {
-      setCollectingMessage('');
-    }
-  };
-
-  const handleRewrite = async () => {
-    if (selectedTopics.size === 0) {
-      alert('请先选择要融合的热点');
-      return;
-    }
-
-    setRewriting(true);
-    setShowRewriteModal(true);
-    setRewriteResult(null);
-
-    try {
-      const res = await fetch('/api/rewrite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'rewrite-from-topics',
-          topicIds: Array.from(selectedTopics),
-          style: rewriteStyle,
-          removeAI: true,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setRewriteResult({
-          title: data.article.title,
-          content: data.article.content,
-          aiScore: data.stats.aiScore,
-          humanScore: data.stats.humanScore,
-          wordCount: data.stats.wordCount,
-        });
-      } else {
-        alert(data.error || '生成失败');
-        setShowRewriteModal(false);
-      }
-    } catch (error) {
-      console.error('Rewrite failed:', error);
-      alert('生成失败，请检查LLM配置');
-      setShowRewriteModal(false);
-    } finally {
-      setRewriting(false);
-    }
-  };
-
-  const formatHotValue = (value: number | null) => {
-    if (!value) return '-';
-    if (value >= 10000000) return (value / 10000000).toFixed(1) + '千万';
-    if (value >= 10000) return (value / 10000).toFixed(1) + '万';
-    return value.toString();
-  };
-
-  const getPlatformIcon = (platform: string) => {
-    const icons: Record<string, string> = {
-      weibo: '📱',
-      douyin: '🎵',
-      xiaohongshu: '📕',
-      zhihu: '💡',
-      baidu: '🔍',
-    };
-    return icons[platform] || '📰';
-  };
-
-  const getPlatformColor = (platform: string) => {
-    const colors: Record<string, string> = {
-      weibo: '#ff8200',
-      douyin: '#000000',
-      xiaohongshu: '#ff2442',
-      zhihu: '#0066ff',
-      baidu: '#2932e1',
-    };
-    return colors[platform] || '#6b7280';
-  };
-
-  const platforms = [
-    { id: 'all', name: '全部', icon: '🔥' },
-    { id: 'weibo', name: '微博', icon: '📱' },
-    { id: 'douyin', name: '抖音', icon: '🎵' },
-    { id: 'xiaohongshu', name: '小红书', icon: '📕' },
-    { id: 'zhihu', name: '知乎', icon: '💡' },
-    { id: 'baidu', name: '百度', icon: '🔍' },
-  ];
-
-  const styles = ['热点评论', '深度分析', '情感共鸣', '干货分享', '故事叙述', '综合类'];
-
-  return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1f2937', marginBottom: '4px' }}>
-            🔥 全网热点聚合
-          </h1>
-          <p style={{ color: '#6b7280', fontSize: '14px' }}>
-            实时聚合微博、抖音、小红书、知乎、百度热搜
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={() => setShowConfigModal(true)}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#f59e0b',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            ⚙️ 配置Cookie
-          </button>
-          <button
-            onClick={fetchAllPlatforms}
-            disabled={fetching}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: fetching ? '#9ca3af' : '#ef4444',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: fetching ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            {fetching ? '获取中...' : '🔄 刷新热点'}
-          </button>
-          {selectedTopics.size > 0 && (
-            <button
-              onClick={handleRewrite}
-              disabled={rewriting}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: rewriting ? '#9ca3af' : '#10b981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: rewriting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              ✨ AI融合洗稿 ({selectedTopics.size})
-            </button>
-          )}
-        </div>
-      </div>
-
-      {blackHorses.length > 0 && (
-        <div style={{ marginBottom: '24px', backgroundColor: '#fef3c7', borderRadius: '12px', padding: '16px', border: '1px solid #fcd34d' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#92400e', marginBottom: '12px' }}>
-            🐴 黑马预测（预计12小时内爆发）
-          </h3>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {blackHorses.slice(0, 5).map((topic) => (
-              <div 
-                key={topic.id} 
-                onClick={() => toggleTopicSelection(topic.id)}
-                style={{ 
-                  backgroundColor: selectedTopics.has(topic.id) ? '#dcfce7' : '#fff', 
-                  borderRadius: '8px', 
-                  padding: '12px', 
-                  minWidth: '200px', 
-                  flex: 1,
-                  cursor: 'pointer',
-                  border: selectedTopics.has(topic.id) ? '2px solid #22c55e' : '2px solid transparent',
-                }}
-              >
-                <div style={{ fontSize: '14px', fontWeight: '500', color: '#1f2937', marginBottom: '4px' }}>
-                  {topic.title}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
-                  <span>{getPlatformIcon(topic.platform)} {topic.platform}</span>
-                  <span style={{ color: '#ef4444' }}>↑ {topic.predictedGrowth?.toFixed(0)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {platforms.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setSelectedPlatform(p.id)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: selectedPlatform === p.id ? '#3b82f6' : '#f3f4f6',
-              color: selectedPlatform === p.id ? '#fff' : '#374151',
-              border: 'none',
-              borderRadius: '20px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>{p.icon}</span>
-            <span>{p.name}</span>
-          </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={selectAllVisible}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#e5e7eb',
-            color: '#374151',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '13px',
-            cursor: 'pointer',
-          }}
-        >
-          全选
-        </button>
-        <button
-          onClick={clearSelection}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#e5e7eb',
-            color: '#374151',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '13px',
-            cursor: 'pointer',
-          }}
-        >
-          清空
-        </button>
-      </div>
-
-      {selectedTopics.size > 0 && (
-        <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#ecfdf5', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <span style={{ color: '#059669', fontWeight: '500' }}>已选择 {selectedTopics.size} 个热点</span>
-          <button
-            onClick={() => {
-              const selectedTopicsList = topics.filter(t => selectedTopics.has(t.id));
-              const titles = selectedTopicsList.map(t => t.title).join('\n');
-              alert(`已将 ${selectedTopicsList.length} 个选题加入选题库！\n\n${titles}`);
-            }}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#3b82f6',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
-          >
-            📌 加入选题
-          </button>
-          <select
-            value={rewriteStyle}
-            onChange={(e) => setRewriteStyle(e.target.value)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: '1px solid #d1d5db',
-              fontSize: '14px',
-            }}
-          >
-            {styles.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleRewrite}
-            disabled={rewriting}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: rewriting ? '#9ca3af' : '#10b981',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px',
-              cursor: rewriting ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {rewriting ? '生成中...' : '✨ 融合洗稿'}
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', backgroundColor: '#fff', borderRadius: '12px' }}>
-          <div style={{ fontSize: '24px' }}>⏳ 加载中...</div>
-        </div>
-      ) : topics.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
-          <div style={{ color: '#6b7280', fontSize: '14px', marginBottom: '16px' }}>
-            暂无热点数据，点击"刷新热点"获取最新数据
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: '12px' }}>
-          {topics.map((topic, index) => (
-            <div 
-              key={topic.id} 
-              onClick={() => toggleTopicSelection(topic.id)}
-              style={{ 
-                backgroundColor: selectedTopics.has(topic.id) ? '#ecfdf5' : '#fff', 
-                borderRadius: '12px', 
-                border: selectedTopics.has(topic.id) ? '2px solid #22c55e' : '1px solid #e5e7eb', 
-                padding: '16px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '16px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '8px', 
-                backgroundColor: index < 3 ? '#fef3c7' : '#f3f4f6',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: index < 3 ? '#92400e' : '#6b7280',
-              }}>
-                {topic.rank || index + 1}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '16px' }}>{getPlatformIcon(topic.platform)}</span>
-                  <span style={{ fontSize: '15px', fontWeight: '500', color: '#1f2937' }}>{topic.title}</span>
-                  {topic.isBlackHorse && (
-                    <span style={{ padding: '2px 6px', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '4px', fontSize: '11px' }}>🐴 黑马</span>
-                  )}
-                  {topic.trendDirection === 'up' && (
-                    <span style={{ color: '#ef4444', fontSize: '12px' }}>↑ 上升</span>
-                  )}
-                </div>
-                {topic.description && (
-                  <div style={{ fontSize: '13px', color: '#6b7280', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {topic.description}
-                  </div>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: getPlatformColor(topic.platform) }}>
-                  {formatHotValue(topic.hotValue)}
-                </div>
-                <div style={{ fontSize: '12px', color: '#9ca3af' }}>
-                  {topic.category}
-                </div>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  collectTopicMaterials(topic);
-                }}
-                disabled={collectingTopicId === topic.id || collectedTopicIds.has(topic.id)}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: collectedTopicIds.has(topic.id) ? '#22c55e' : (collectingTopicId === topic.id ? '#9ca3af' : '#8b5cf6'),
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  cursor: collectingTopicId === topic.id || collectedTopicIds.has(topic.id) ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {collectedTopicIds.has(topic.id) ? '✓ 已采集' : (collectingTopicId === topic.id ? '采集中...' : '📦 采集素材')}
-              </button>
-              <div style={{
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                border: selectedTopics.has(topic.id) ? '2px solid #22c55e' : '2px solid #d1d5db',
-                backgroundColor: selectedTopics.has(topic.id) ? '#22c55e' : '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '14px',
-                color: '#fff',
-              }}>
-                {selectedTopics.has(topic.id) && '✓'}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showRewriteModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            backgroundColor: '#fff',
-            borderRadius: '16px',
-            width: '90%',
-            maxWidth: '800px',
-            maxHeight: '90vh',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>
-                ✨ AI融合洗稿结果
-              </h2>
-              <button
-                onClick={() => setShowRewriteModal(false)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  backgroundColor: '#f3f4f6',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ padding: '20px', flex: 1, overflow: 'auto' }}>
-              {rewriting ? (
-                <div style={{ textAlign: 'center', padding: '60px' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                  <div style={{ color: '#6b7280' }}>AI正在融合洗稿中...</div>
-                  <div style={{ color: '#9ca3af', fontSize: '13px', marginTop: '8px' }}>
-                    正在调用LLM生成内容并去除AI味
-                  </div>
-                </div>
-              ) : rewriteResult ? (
-                <div>
-                  <div style={{ marginBottom: '16px', display: 'flex', gap: '16px' }}>
-                    <div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', flex: 1 }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>字数</div>
-                      <div style={{ fontSize: '20px', fontWeight: '600', color: '#059669' }}>{rewriteResult.wordCount}</div>
-                    </div>
-                    <div style={{ padding: '12px', backgroundColor: '#fef3c7', borderRadius: '8px', flex: 1 }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>AI味评分</div>
-                      <div style={{ fontSize: '20px', fontWeight: '600', color: '#d97706' }}>{rewriteResult.aiScore.toFixed(0)}%</div>
-                    </div>
-                    <div style={{ padding: '12px', backgroundColor: '#dbeafe', borderRadius: '8px', flex: 1 }}>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>人性化评分</div>
-                      <div style={{ fontSize: '20px', fontWeight: '600', color: '#2563eb' }}>{rewriteResult.humanScore.toFixed(0)}%</div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', marginBottom: '8px' }}>标题</div>
-                    <div style={{ fontSize: '16px', color: '#374151', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                      {rewriteResult.title}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', marginBottom: '8px' }}>正文</div>
-                    <div style={{ 
-                      fontSize: '14px', 
-                      color: '#374151', 
-                      padding: '16px', 
-                      backgroundColor: '#f9fafb', 
-                      borderRadius: '8px',
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: 1.8,
-                      maxHeight: '400px',
-                      overflow: 'auto',
-                    }}>
-                      {rewriteResult.content}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {rewriteResult && (
-              <div style={{ padding: '16px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(rewriteResult.content);
-                    alert('已复制到剪贴板');
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#f3f4f6',
-                    color: '#374151',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  📋 复制内容
-                </button>
-                <button
-                  onClick={() => setShowRewriteModal(false)}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  完成
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showConfigModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            backgroundColor: '#fff',
-            borderRadius: '12px',
-            padding: '24px',
-            width: '500px',
-            maxWidth: '90vw',
-            maxHeight: '80vh',
-            overflow: 'auto',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>⚙️ 热点平台 Cookie 配置</h3>
-              <button onClick={() => setShowConfigModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-            </div>
-            
-            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#eff6ff', borderRadius: '8px', fontSize: '13px', color: '#1e40af' }}>
-              <div style={{ fontWeight: '500', marginBottom: '8px' }}>📋 如何获取 Cookie：</div>
-              <ol style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.6' }}>
-                <li>打开浏览器，登录目标平台网站</li>
-                <li>按 F12 打开开发者工具</li>
-                <li>切换到 Network（网络）标签</li>
-                <li>刷新页面，点击任意请求</li>
-                <li>在 Headers 中找到 Cookie 字段，复制完整值</li>
-              </ol>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>选择平台：</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {hotPlatforms.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      setActiveConfigPlatform(p.id);
-                      setCurrentCookieInput(platformCookies[p.id] || '');
-                    }}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: activeConfigPlatform === p.id ? p.color : '#f3f4f6',
-                      color: activeConfigPlatform === p.id ? '#fff' : '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <span>{p.icon}</span>
-                    <span>{p.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
-                {getHotPlatformInfo(activeConfigPlatform).icon} {getHotPlatformInfo(activeConfigPlatform).name} Cookie：
-              </label>
-              <textarea
-                value={currentCookieInput}
-                onChange={(e) => setCurrentCookieInput(e.target.value)}
-                placeholder="粘贴 Cookie 值..."
-                style={{
-                  width: '100%',
-                  height: '100px',
-                  padding: '12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  resize: 'vertical',
-                  fontFamily: 'monospace',
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>已配置状态：</div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {hotPlatforms.map(p => (
-                  <div key={p.id} style={{
-                    padding: '6px 12px',
-                    backgroundColor: platformCookies[p.id] ? '#dcfce7' : '#f3f4f6',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}>
-                    <span>{p.icon}</span>
-                    <span>{p.name}</span>
-                    <span>{platformCookies[p.id] ? '✅' : '❌'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowConfigModal(false)}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  if (currentCookieInput.trim()) {
-                    setPlatformCookies(prev => ({
-                      ...prev,
-                      [activeConfigPlatform]: currentCookieInput.trim()
-                    }));
-                    alert(`${getHotPlatformInfo(activeConfigPlatform).name} Cookie 配置成功！`);
-                  } else {
-                    alert('请输入 Cookie 值');
-                  }
-                }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                保存配置
               </button>
             </div>
           </div>
@@ -8544,6 +7655,22 @@ export default function ContentMonitorPage() {
             </button>
           )}
           
+          {menuSettings.hotTopics && (
+            <button
+              style={{ 
+                ...styles.tabItem, 
+                ...(activeTab === 'hotTopics' ? styles.tabItemActive : {}),
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                padding: sidebarCollapsed ? '12px 0' : '12px',
+              }}
+              onClick={() => setActiveTab('hotTopics')}
+              title={sidebarCollapsed ? '热门选题' : ''}
+            >
+              <span style={styles.tabIcon}>🔥</span>
+              {!sidebarCollapsed && <span>热门选题</span>}
+            </button>
+          )}
+          
           {(menuSettings.topicAnalysis || menuSettings.create || menuSettings.published) && (
             <div style={styles.menuGroup}>
               {!sidebarCollapsed && <div style={styles.menuGroupTitle}>✍️ 创作</div>}
@@ -9481,6 +8608,65 @@ export default function ContentMonitorPage() {
                   value={editingAccount.authorName}
                   onChange={(e) => setEditingAccount({ ...editingAccount, authorName: e.target.value })}
                 />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>目标用户群体</label>
+                <textarea
+                  style={{ ...styles.formInput, minHeight: '60px', resize: 'vertical' }}
+                  placeholder="描述您的目标用户群体，如：25-35岁职场人士、科技爱好者、创业者等"
+                  value={editingAccount.targetAudience || ''}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, targetAudience: e.target.value })}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>读者画像</label>
+                <textarea
+                  style={{ ...styles.formInput, minHeight: '80px', resize: 'vertical' }}
+                  placeholder="详细描述读者画像，如：关注科技趋势、喜欢深度内容、注重实用价值等"
+                  value={editingAccount.readerPersona || ''}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, readerPersona: e.target.value })}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>内容风格</label>
+                <select
+                  style={styles.formSelect}
+                  value={editingAccount.contentStyle || ''}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, contentStyle: e.target.value })}
+                >
+                  <option value="">请选择内容风格</option>
+                  <option value="专业深度">专业深度</option>
+                  <option value="轻松幽默">轻松幽默</option>
+                  <option value="干货实用">干货实用</option>
+                  <option value="情感共鸣">情感共鸣</option>
+                  <option value="故事叙述">故事叙述</option>
+                  <option value="资讯速递">资讯速递</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>主要话题领域</label>
+                <input
+                  type="text"
+                  style={styles.formInput}
+                  placeholder="用逗号分隔，如：科技,AI,创业,职场"
+                  value={(editingAccount.mainTopics || []).join(',')}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, mainTopics: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>语言风格偏好</label>
+                <select
+                  style={styles.formSelect}
+                  value={editingAccount.tonePreference || ''}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, tonePreference: e.target.value })}
+                >
+                  <option value="">请选择语言风格</option>
+                  <option value="正式严谨">正式严谨</option>
+                  <option value="亲切自然">亲切自然</option>
+                  <option value="活泼有趣">活泼有趣</option>
+                  <option value="专业权威">专业权威</option>
+                  <option value="接地气">接地气</option>
+                </select>
               </div>
             </div>
             <div style={styles.modalFooter}>

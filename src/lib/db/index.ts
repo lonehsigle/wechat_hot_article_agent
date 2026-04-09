@@ -837,6 +837,34 @@ function migrateDatabase() {
       console.log('Created optimization_suggestions table');
     }
     
+    const wechatAccountsTableInfo = sqlite.prepare('PRAGMA table_info(wechat_accounts)').all() as Array<{ name: string }>;
+    const wechatAccountsColumns = wechatAccountsTableInfo.map(col => col.name);
+    
+    if (!wechatAccountsColumns.includes('target_audience')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN target_audience TEXT');
+      console.log('Added target_audience column to wechat_accounts');
+    }
+    
+    if (!wechatAccountsColumns.includes('reader_persona')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN reader_persona TEXT');
+      console.log('Added reader_persona column to wechat_accounts');
+    }
+    
+    if (!wechatAccountsColumns.includes('content_style')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN content_style TEXT');
+      console.log('Added content_style column to wechat_accounts');
+    }
+    
+    if (!wechatAccountsColumns.includes('main_topics')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN main_topics TEXT');
+      console.log('Added main_topics column to wechat_accounts');
+    }
+    
+    if (!wechatAccountsColumns.includes('tone_preference')) {
+      sqlite.exec('ALTER TABLE wechat_accounts ADD COLUMN tone_preference TEXT');
+      console.log('Added tone_preference column to wechat_accounts');
+    }
+    
     insertDefaultStyles();
     
     console.log('Database migration completed');

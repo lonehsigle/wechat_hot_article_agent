@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, collectedArticles, articleRewrites } from '@/lib/db/schema';
-import { eq, desc, and, gt, inArray } from 'drizzle-orm';
+import { eq, desc, and, gt, inArray, or, like, sql } from 'drizzle-orm';
 
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
 
@@ -57,6 +57,21 @@ export async function GET(request: NextRequest) {
       .limit(24);
     
     return NextResponse.json(history);
+  }
+
+  if (action === 'search') {
+    const keyword = searchParams.get('keyword');
+    if (!keyword) {
+      return NextResponse.json({ error: 'keyword is required' }, { status: 400 });
+    }
+    
+    const topics = await db().select()
+      .from(hotTopics)
+      .where(like(hotTopics.title, `%${keyword}%`))
+      .orderBy(desc(hotTopics.hotValue))
+      .limit(50);
+    
+    return NextResponse.json(topics);
   }
 
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

@@ -37,7 +37,13 @@ export async function POST(request: NextRequest) {
               name: account.name,
               appId: account.appId,
               appSecret: account.appSecret,
+              authorName: account.authorName,
               isDefault: account.isDefault || false,
+              targetAudience: account.targetAudience || null,
+              readerPersona: account.readerPersona || null,
+              contentStyle: account.contentStyle || null,
+              mainTopics: account.mainTopics || null,
+              tonePreference: account.tonePreference || null,
               updatedAt: new Date(),
             })
             .where(eq(wechatAccounts.id, account.id));
@@ -49,7 +55,13 @@ export async function POST(request: NextRequest) {
         name: account.name,
         appId: account.appId,
         appSecret: account.appSecret,
+        authorName: account.authorName,
         isDefault: account.isDefault || false,
+        targetAudience: account.targetAudience || null,
+        readerPersona: account.readerPersona || null,
+        contentStyle: account.contentStyle || null,
+        mainTopics: account.mainTopics || null,
+        tonePreference: account.tonePreference || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -59,5 +71,22 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Failed to save wechat config:', error);
     return NextResponse.json({ success: false, error: 'Failed to save config' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
+    }
+
+    await db().delete(wechatAccounts).where(eq(wechatAccounts.id, parseInt(id)));
+    return NextResponse.json({ success: true, message: 'Account deleted' });
+  } catch (error) {
+    console.error('Failed to delete wechat account:', error);
+    return NextResponse.json({ success: false, error: 'Failed to delete account' }, { status: 500 });
   }
 }

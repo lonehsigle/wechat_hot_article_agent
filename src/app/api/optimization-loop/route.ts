@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { publishedArticles, optimizationSuggestions, contents, wechatAuth } from '@/lib/db/schema';
+import { publishedArticles, optimizationSuggestions, contents, wechatAuth, wechatAccounts } from '@/lib/db/schema';
 import { eq, desc, and, isNotNull, sql } from 'drizzle-orm';
 import { callLLM } from '@/lib/llm/service';
 
@@ -242,6 +242,13 @@ async function handleAnalyzeGap(data: { articleId: number }) {
 
   const source = sourceContent[0];
 
+  const accounts = await db()
+    .select()
+    .from(wechatAccounts)
+    .limit(1);
+
+  const accountInfo = accounts.length > 0 ? accounts[0] : null;
+
   await db()
     .update(publishedArticles)
     .set({ analysisStatus: 'analyzing' })
@@ -255,9 +262,18 @@ async function handleAnalyzeGap(data: { articleId: number }) {
       ? Math.round((((articleData.likeCount || 0) + (articleData.lookCount || 0)) / ((source.likes || 0) + (source.readCount || 0))) * 100 * 100) / 100
       : 0;
 
-    const analysisPrompt = `你是一位资深的公众号运营专家，擅长分析文章表现差距。
+    const accountContext = accountInfo ? `
+【公众号定位信息】
+目标用户群体：${accountInfo.targetAudience || '未设置'}
+读者画像：${accountInfo.readerPersona || '未设置'}
+内容风格：${accountInfo.contentStyle || '未设置'}
+主要话题领域：${accountInfo.mainTopics ? (accountInfo.mainTopics as string[]).join('、') : '未设置'}
+语言风格偏好：${accountInfo.tonePreference || '未设置'}
+` : '';
 
-请对比分析以下原文和改写文章，找出改写文章表现不佳的原因。
+    const analysisPrompt = `你是一位资深的公众号运营专家，擅长分析文章表现差距。
+${accountContext}
+请对比分析以下原文和改写文章，找出改写文章表现不佳的原因，并结合公众号定位给出针对性建议。
 
 【原文信息】
 标题：${source.title}
@@ -281,31 +297,36 @@ async function handleAnalyzeGap(data: { articleId: number }) {
 1. **标题吸引力**
    - 原文标题的优点
    - 改写标题的问题
-   - 具体优化建议
+   - 结合目标用户群体的具体优化建议
 
 2. **开头抓人程度**
    - 原文开头的优点（如有信息）
    - 改写开头的问题
-   - 具体优化建议
+   - 结合读者画像的具体优化建议
 
 3. **内容价值**
    - 原文内容的优点
    - 改写内容的问题
-   - 具体优化建议
+   - 结合内容风格的具体优化建议
 
 4. **结构节奏**
    - 分析改写文章的结构问题
-   - 具体优化建议
+   - 结合用户阅读习惯的具体优化建议
 
 5. **结尾引导**
    - 分析改写文章的结尾问题
-   - 具体优化建议
+   - 结合互动目标的具体优化建议
+
+6. **用户匹配度**（如有公众号定位信息）
+   - 分析改写内容是否符合目标用户群体
+   - 分析语言风格是否符合读者画像
+   - 给出针对性调整建议
 
 请返回 JSON 格式（不要包含 markdown 代码块标记）：
 {
   "analysis": [
     {
-      "gapType": "title|opening|content|structure|ending",
+      "gapType": "title|opening|content|structure|ending|audience",
       "sourceStrength": "原文的优点",
       "rewriteWeakness": "改写的问题",
       "suggestion": "具体优化建议",
@@ -313,7 +334,12 @@ async function handleAnalyzeGap(data: { articleId: number }) {
     }
   ],
   "overallAssessment": "整体评估",
-  "keyRecommendations": ["关键建议1", "关键建议2"]
+  "keyRecommendations": ["关键建议1", "关键建议2"],
+  "audienceFit": {
+    "score": 0-100,
+    "issues": ["问题1", "问题2"],
+    "suggestions": ["建议1", "建议2"]
+  }
 }`;
 
     console.log('[闭环优化] 开始 AI 分析...');
