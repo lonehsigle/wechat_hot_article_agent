@@ -47,7 +47,15 @@ function CrawlerPage() {
   }>>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'detail' | 'creators'>('search');
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [platformCookies, setPlatformCookies] = useState<Record<string, string>>({});
+  const [platformCookies, setPlatformCookies] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('crawler_cookies');
+        return saved ? JSON.parse(saved) : {};
+      } catch { return {}; }
+    }
+    return {};
+  });
   const [currentCookieInput, setCurrentCookieInput] = useState('');
   const [showAddCreatorModal, setShowAddCreatorModal] = useState(false);
   const [newCreatorName, setNewCreatorName] = useState('');
@@ -185,6 +193,12 @@ function CrawlerPage() {
       console.error('Load creators failed:', error);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Object.keys(platformCookies).length > 0) {
+      localStorage.setItem('crawler_cookies', JSON.stringify(platformCookies));
+    }
+  }, [platformCookies]);
 
   useEffect(() => {
     if (activeTab === 'creators') {

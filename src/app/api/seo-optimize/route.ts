@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { collectedArticles, articleRewrites } from '@/lib/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
-
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
-const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+import { callLLM, type LLMMessage } from '@/lib/llm/service';
 
 interface SEOAnalysis {
   title: string;
@@ -38,27 +36,10 @@ interface WechatSEOReport {
   optimizedDigest?: string;
 }
 
-async function callLLM(prompt: string): Promise<string> {
-  const response = await fetch(`${DEEPSEEK_BASE_URL}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 3000,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`LLM API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
+async function callLLMForSEO(prompt: string): Promise<string> {
+  const messages: LLMMessage[] = [{ role: 'user', content: prompt }];
+  const result = await callLLM(messages, { temperature: 0.7 });
+  return result.content;
 }
 
 async function analyzeTitle(title: string): Promise<{
@@ -112,7 +93,7 @@ async function analyzeTitle(title: string): Promise<{
 }`;
 
   try {
-    const result = await callLLM(prompt);
+    const result = await callLLMForSEO(prompt);
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -145,7 +126,7 @@ async function extractKeywordsFromContent(content: string, title: string): Promi
 请直接返回关键词列表，每行一个，不要编号。`;
 
   try {
-    const result = await callLLM(prompt);
+    const result = await callLLMForSEO(prompt);
     return result.split('\n').filter(line => line.trim()).slice(0, 10);
   } catch {
     const words = title.split(/[\s,，、]+/).filter(w => w.length >= 2);
@@ -240,7 +221,7 @@ async function generateKeywordSuggestions(topic: string, existingKeywords: strin
 ]`;
 
   try {
-    const result = await callLLM(prompt);
+    const result = await callLLMForSEO(prompt);
     const jsonMatch = result.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
@@ -350,7 +331,7 @@ async function optimizeForWechat(articleId: number): Promise<WechatSEOReport> {
 }`;
 
   try {
-    const result = await callLLM(prompt);
+    const result = await callLLMForSEO(prompt);
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

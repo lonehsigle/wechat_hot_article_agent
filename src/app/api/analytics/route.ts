@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { publishedArticles, articleStats } from '@/lib/db/schema';
-import { desc, gte } from 'drizzle-orm';
+import { publishedArticles, articleStats, contents, monitorCategories } from '@/lib/db/schema';
+import { desc, gte, eq } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -85,13 +85,42 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const categoryStats = [
-      { category: '运营技巧', count: Math.round(totalArticles * 0.3), avgReads: Math.round(totalReads / Math.max(totalArticles, 1)) },
-      { category: '内容创作', count: Math.round(totalArticles * 0.25), avgReads: Math.round(totalReads / Math.max(totalArticles, 1)) },
-      { category: '工具推荐', count: Math.round(totalArticles * 0.2), avgReads: Math.round(totalReads / Math.max(totalArticles, 1)) },
-      { category: '行业分析', count: Math.round(totalArticles * 0.15), avgReads: Math.round(totalReads / Math.max(totalArticles, 1)) },
-      { category: '案例分享', count: Math.round(totalArticles * 0.1), avgReads: Math.round(totalReads / Math.max(totalArticles, 1)) },
-    ].filter(c => c.count > 0);
+    // 通过 publishedArticles.sourceContentId -> contents.categoryId -> monitorCategories 获取真实分类统计
+    const articleIds = articles.map(a => a.id);
+    let categoryStats: Array<{ category: string; count: number; avgReads: number }> = [];
+
+    if (articleIds.length > 0) {
+      // 查询已发布文章关联的源内容分类
+      const articleContentCategories = await database
+        .select({
+          articleId: publishedArticles.id,
+          categoryId: contents.categoryId,
+          categoryName: monitorCategories.name,
+        })
+        .from(publishedArticles)
+        .leftJoin(contents, eq(publishedArticles.sourceContentId, contents.id))
+        .leftJoin(monitorCategories, eq(contents.categoryId, monitorCategories.id))
+        .where(gte(publishedArticles.createdAt, startDate));
+
+      // 按分类分组统计
+      const categoryMap = new Map<string, { articleIds: number[]; totalReads: number }>();
+      articleContentCategories.forEach(row => {
+        const categoryName = row.categoryName || '未分类';
+        const existing = categoryMap.get(categoryName) || { articleIds: [], totalReads: 0 };
+        existing.articleIds.push(row.articleId);
+        const reads = articleStatsMap.get(row.articleId)?.reads || 0;
+        existing.totalReads += reads;
+        categoryMap.set(categoryName, existing);
+      });
+
+      categoryStats = Array.from(categoryMap.entries())
+        .map(([category, data]) => ({
+          category,
+          count: data.articleIds.length,
+          avgReads: data.articleIds.length > 0 ? Math.round(data.totalReads / data.articleIds.length) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+    }
 
     return NextResponse.json({
       totalArticles,

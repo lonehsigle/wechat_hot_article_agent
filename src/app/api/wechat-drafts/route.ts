@@ -150,54 +150,9 @@ async function searchDrafts(keyword: string | null) {
 }
 
 async function syncDrafts() {
-  const mockDrafts = generateMockDrafts();
-
-  let added = 0;
-  let updated = 0;
-
-  for (const draft of mockDrafts) {
-    const existing = await db().select()
-      .from(wechatDrafts)
-      .where(eq(wechatDrafts.mediaId, draft.mediaId))
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db().update(wechatDrafts)
-        .set({
-          title: draft.title,
-          author: draft.author,
-          digest: draft.digest,
-          content: draft.content,
-          coverImage: draft.coverImage,
-          updateTime: draft.updateTime,
-          status: draft.status,
-          updatedAt: new Date(),
-        })
-        .where(eq(wechatDrafts.mediaId, draft.mediaId));
-      updated++;
-    } else {
-      await db().insert(wechatDrafts).values({
-        mediaId: draft.mediaId,
-        title: draft.title,
-        author: draft.author,
-        digest: draft.digest,
-        content: draft.content,
-        coverImage: draft.coverImage,
-        status: draft.status,
-        createTime: draft.createTime,
-        updateTime: draft.updateTime,
-        fetchedAt: new Date(),
-      });
-      added++;
-    }
-  }
-
   return NextResponse.json({
-    success: true,
-    message: `同步完成：新增 ${added} 篇，更新 ${updated} 篇`,
-    added,
-    updated,
-    total: mockDrafts.length,
+    success: false,
+    error: '草稿同步功能需要配置微信公众号授权，请先在公众号管理中完成授权',
   });
 }
 
@@ -300,32 +255,5 @@ async function clearPublishedDrafts() {
   });
 }
 
-function generateMockDrafts() {
-  const titles = [
-    '2024年度总结：我的成长与收获',
-    '如何高效学习一门新技能',
-    '产品经理必备的5个思维模型',
-    '我的读书笔记：《原则》',
-    '职场新人避坑指南',
-    '如何建立个人知识体系',
-    '写作技巧分享：如何写出好文章',
-    '时间管理方法论',
-    '深度工作：如何高效专注',
-    '我的健身计划与心得',
-  ];
-
-  const authors = ['小明', '运营小助手', '产品观察', '职场笔记', '生活记录'];
-  const statuses = ['draft', 'draft', 'draft', 'published', 'pending'];
-
-  return titles.map((title, i) => ({
-    mediaId: `draft_${Date.now()}_${i}`,
-    title,
-    author: authors[i % authors.length],
-    digest: `这是《${title}》的摘要内容，主要介绍了相关的核心观点和方法论...`,
-    content: `# ${title}\n\n这是文章的正文内容...\n\n## 一、背景介绍\n\n...\n\n## 二、核心内容\n\n...\n\n## 三、总结\n\n...`,
-    coverImage: `https://picsum.photos/800/400?random=${i}`,
-    status: statuses[i % statuses.length],
-    createTime: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-    updateTime: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-  }));
-}
+// generateMockDrafts 已移除 - 草稿同步功能需要配置微信公众号授权后实现
+// function generateMockDrafts() { ... }

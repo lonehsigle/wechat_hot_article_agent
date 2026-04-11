@@ -125,8 +125,9 @@ async function startMonitor(interval: number) {
 
   return NextResponse.json({
     success: true,
-    message: `监控已启动，每 ${interval} 秒刷新一次`,
+    message: '热点自动监控功能暂未实现，请手动刷新获取最新热点',
     interval,
+    isRealData: false,
   });
 }
 
@@ -213,7 +214,8 @@ async function fetchPlatformTopics(platform: string) {
     });
   }
 
-  return inserted;
+  // 标记当前返回的是Mock数据
+  return inserted.map(item => ({ ...item, isRealData: false }));
 }
 
 async function predictBlackHorses() {

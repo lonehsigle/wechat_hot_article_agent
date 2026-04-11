@@ -71,6 +71,35 @@ export async function getAccessToken(accountId: number): Promise<string> {
   return accessToken;
 }
 
+// 常见图片扩展名到MIME类型的映射
+const IMAGE_MIME_MAP: Record<string, string> = {
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'gif': 'image/gif',
+  'webp': 'image/webp',
+  'bmp': 'image/bmp',
+  'svg': 'image/svg+xml',
+  'ico': 'image/x-icon',
+  'tiff': 'image/tiff',
+  'tif': 'image/tiff',
+  'avif': 'image/avif',
+};
+
+// 根据文件名推断MIME类型
+function guessMimeType(filename: string): string | undefined {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  return ext ? IMAGE_MIME_MAP[ext] : undefined;
+}
+
+// 根据MIME类型推断文件扩展名
+function mimeToExt(mimeType: string): string {
+  const entry = Object.entries(IMAGE_MIME_MAP).find(([, mime]) => mime === mimeType);
+  if (entry) return entry[0];
+  // 默认返回 jpg
+  return 'jpg';
+}
+
 export interface UploadImageResult {
   mediaId: string;
   url?: string;
@@ -80,13 +109,16 @@ export async function uploadImage(
   accountId: number,
   imageData: Buffer,
   filename: string,
-  type: 'thumb' | 'image' = 'image'
+  type: 'thumb' | 'image' = 'image',
+  mimeType?: string
 ): Promise<UploadImageResult> {
   const accessToken = await getAccessToken(accountId);
-  
+
+  // 根据文件扩展名推断MIME类型，如果无法判断则默认使用 image/jpeg
+  const detectedMime = mimeType || guessMimeType(filename) || 'image/jpeg';
   const formData = new FormData();
   const uint8Array = new Uint8Array(imageData);
-  const blob = new Blob([uint8Array], { type: 'image/jpeg' });
+  const blob = new Blob([uint8Array], { type: detectedMime });
   formData.append('media', blob, filename);
 
   let url: string;
@@ -121,13 +153,16 @@ export async function uploadImageFromUrl(
 ): Promise<UploadImageResult> {
   let buffer: Buffer;
   let filename: string;
-  
+  let detectedMime: string | undefined;
+
   if (imageUrl.startsWith('data:')) {
-    const matches = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+    const matches = imageUrl.match(/^data:(image\/\w+);base64,(.+)$/);
     if (!matches) {
       throw new Error('无效的 base64 图片格式');
     }
-    const ext = matches[1] === 'png' ? 'png' : 'jpg';
+    // 从 data URI 中提取实际MIME类型
+    detectedMime = matches[1];
+    const ext = mimeToExt(detectedMime);
     buffer = Buffer.from(matches[2], 'base64');
     filename = `image.${ext}`;
   } else {
@@ -135,15 +170,21 @@ export async function uploadImageFromUrl(
     if (!response.ok) {
       throw new Error(`下载图片失败: ${response.status}`);
     }
-    
+
     const arrayBuffer = await response.arrayBuffer();
     buffer = Buffer.from(arrayBuffer);
-    
+
+    // 优先从响应的 Content-Type 获取MIME类型
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.startsWith('image/')) {
+      detectedMime = contentType.split(';')[0].trim();
+    }
+
     const urlObj = new URL(imageUrl);
     filename = urlObj.pathname.split('/').pop() || 'image.jpg';
   }
-  
-  return uploadImage(accountId, buffer, filename, type);
+
+  return uploadImage(accountId, buffer, filename, type, detectedMime);
 }
 
 export interface ArticleMedia {

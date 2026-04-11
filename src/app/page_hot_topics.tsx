@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { showToast } from '@/lib/utils/toast';
 
 function HotTopicsPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -18,6 +19,7 @@ function HotTopicsPage() {
 
   const searchTopics = async () => {
     if (!searchKeyword.trim()) {
+      showToast('请输入搜索关键词', 'warning');
       return;
     }
     setSearching(true);
@@ -25,7 +27,7 @@ function HotTopicsPage() {
       const res = await fetch(`/api/hot-radar?action=network-search&keyword=${encodeURIComponent(searchKeyword)}&maxResults=20`);
       const data = await res.json();
       if (data.error) {
-        alert(`搜索失败: ${data.error}`);
+        showToast(`搜索失败: ${data.error}`, 'error');
         setSearchResults([]);
       } else if (data.results && data.results.length > 0) {
         setSearchResults(data.results.map((item: any) => ({
@@ -35,13 +37,14 @@ function HotTopicsPage() {
           url: item.url,
           source: item.source || 'web',
         })));
+        showToast(`找到 ${data.results.length} 个相关结果`, 'success');
       } else {
         setSearchResults([]);
-        alert('未找到相关结果');
+        showToast('未找到相关结果', 'info');
       }
     } catch (error) {
       console.error('搜索失败:', error);
-      alert('搜索失败，请稍后重试');
+      showToast('搜索失败，请稍后重试', 'error');
     } finally {
       setSearching(false);
     }
@@ -68,12 +71,11 @@ function HotTopicsPage() {
 
   const addToTopicLibrary = () => {
     if (selectedTopics.size === 0) {
-      alert('请先选择要加入选题库的热点');
+      showToast('请先选择要加入选题库的热点', 'warning');
       return;
     }
     const selectedList = searchResults.filter(r => selectedTopics.has(r.id));
-    const titles = selectedList.map(r => r.title).join('\n');
-    alert(`已将 ${selectedList.length} 个选题加入选题库！\n\n${titles}`);
+    showToast(`已将 ${selectedList.length} 个选题加入选题库`, 'success');
   };
 
   const collectTopicMaterials = async (topic: typeof searchResults[0]) => {
@@ -89,14 +91,14 @@ function HotTopicsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`成功采集 ${data.materials?.length || 0} 条素材`);
+        showToast(`成功采集 ${data.materials?.length || 0} 条素材`, 'success');
         setCollectedTopicIds(prev => new Set([...prev, topic.id]));
       } else {
-        alert(data.message || '采集失败');
+        showToast(data.message || '采集失败', 'error');
       }
     } catch (error) {
       console.error('采集失败:', error);
-      alert('采集失败，请稍后重试');
+      showToast('采集失败，请稍后重试', 'error');
     } finally {
       setCollectingTopicId(null);
     }
@@ -373,7 +375,7 @@ function HotTopicsPage() {
             输入关键词搜索热点话题
           </div>
           <div style={{ color: '#9ca3af', fontSize: '14px' }}>
-            支持多引擎搜索： Tavily、天工/DuckDuckGo/维基百科
+            支持多引擎搜索：Tavily、天工、MiniMax、DuckDuckGo、维基百科
           </div>
         </div>
       )}

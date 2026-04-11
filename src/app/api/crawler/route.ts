@@ -177,14 +177,25 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
   let isRealData = false;
 
   if (cookie && cookie.trim()) {
-    // 有Cookie时，尝试真实爬取（这里需要实际实现爬虫逻辑）
-    // 由于真实爬取涉及复杂的反爬处理，这里返回提示信息
-    // 实际项目中可以使用 playwright 或 puppeteer 进行爬取
-    isRealData = false;
-    posts = generateMockSearchResults(platform, keyword, limit);
-    // TODO: 实现真实爬取逻辑
-    // posts = await realSearchPosts(platform, keyword, cookie, limit);
+    // 有Cookie时，通用爬虫功能暂未实现
+    await db().update(crawlTasks)
+      .set({
+        status: 'failed',
+        completedAt: new Date(),
+      })
+      .where(eq(crawlTasks.id, task.id));
+
+    return NextResponse.json({
+      success: false,
+      taskId: task.id,
+      error: '通用爬虫功能暂未实现，请使用微信文章采集或Deep-fetch功能',
+      posts: [],
+      total: 0,
+      isRealData: false,
+    });
   } else {
+    // 无Cookie时，返回Mock演示数据
+    isRealData = false;
     posts = generateMockSearchResults(platform, keyword, limit);
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { llmConfigs } from '@/lib/db/schema';
 import { callLLM, type LLMMessage } from '@/lib/llm/service';
+import { decrypt } from '@/lib/db/crypto';
 
 interface ImageGenerationResponse {
   data: {
@@ -56,7 +57,7 @@ async function getMiniMaxConfig() {
   }
   
   return {
-    apiKey: minimaxConfig.apiKey,
+    apiKey: decrypt(minimaxConfig.apiKey),
     model: minimaxConfig.model || 'image-01',
   };
 }
