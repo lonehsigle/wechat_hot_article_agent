@@ -43,6 +43,30 @@ export function initDatabase() {
   if (!sqlite) return;
   
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      avatar TEXT,
+      role TEXT DEFAULT 'user',
+      is_active INTEGER DEFAULT 1,
+      last_login_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      user_agent TEXT,
+      ip_address TEXT,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS monitor_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -489,6 +513,10 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_topics_report ON topics(report_id);
     CREATE INDEX IF NOT EXISTS idx_cache_key ON cache_records(cache_key);
     CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache_records(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_articles_account ON published_articles(wechat_account_id);
     CREATE INDEX IF NOT EXISTS idx_stats_article ON article_stats(article_id);
     CREATE INDEX IF NOT EXISTS idx_stats_daily_article ON article_stats_daily(article_id);

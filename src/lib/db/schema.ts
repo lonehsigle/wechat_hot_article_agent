@@ -1,5 +1,29 @@
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  username: text('username').notNull().unique(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  displayName: text('display_name'),
+  avatar: text('avatar'),
+  role: text('role').default('user'),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
+export const userSessions = sqliteTable('user_sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  token: text('token').notNull().unique(),
+  userAgent: text('user_agent'),
+  ipAddress: text('ip_address'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
 export const monitorCategories = sqliteTable('monitor_categories', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),

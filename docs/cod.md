@@ -1,5 +1,47 @@
 # 开发文档
 
+## 版本: 1.2.0
+## 更新日期: 2026-04-11
+
+### 新增功能
+1. **多用户管理功能**: 新增完整的用户认证系统
+   - 用户注册/登录/登出功能
+   - 基于 Cookie 的会话管理（7天有效期）
+   - 用户表和会话表存储用户数据
+   - 密码使用 SHA256 加密存储
+
+2. **展示导航首页**: 新增产品展示首页
+   - 产品功能特性展示
+   - 核心功能介绍卡片
+   - 数据统计展示
+   - 登录/注册弹窗
+
+3. **路由保护**: 应用界面需要登录后才能访问
+   - 首页自动检测登录状态
+   - 已登录用户自动跳转到应用界面
+   - 未登录用户显示展示导航页
+
+### 数据库变更
+1. **新增 users 表**: 存储用户账号信息
+   - id, username, email, password_hash
+   - display_name, avatar, role
+   - is_active, last_login_at
+   - created_at, updated_at
+
+2. **新增 user_sessions 表**: 存储用户会话
+   - id, user_id, token
+   - user_agent, ip_address
+   - expires_at, created_at
+
+### API 变更
+1. **新增 /api/auth 路由**: 用户认证接口
+   - POST action=register: 用户注册
+   - POST action=login: 用户登录
+   - POST action=logout: 用户登出
+   - GET: 检查登录状态
+
+---
+
 ## 版本: 1.1.0
 ## 更新日期: 2025-04-09
 
