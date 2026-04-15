@@ -46,6 +46,16 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, setDefault, ...data } = body;
 
+    if (!id) {
+      return errorResponse('ID is required', 400);
+    }
+
+    // 安全：验证账号是否存在
+    const existing = await getWechatAccountById(id);
+    if (!existing) {
+      return errorResponse('账号不存在', 404);
+    }
+
     if (setDefault) {
       await setDefaultWechatAccount(id);
       return successResponse(null);

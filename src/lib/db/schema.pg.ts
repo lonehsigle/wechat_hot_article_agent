@@ -1,0 +1,653 @@
+import { pgTable, text, integer, real, timestamp, boolean, serial, primaryKey } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  displayName: text('display_name'),
+  avatar: text('avatar'),
+  role: text('role').default('user'),
+  isActive: boolean('is_active').default(true),
+  lastLoginAt: timestamp('last_login_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const userSessions = pgTable('user_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  token: text('token').notNull().unique(),
+  userAgent: text('user_agent'),
+  ipAddress: text('ip_address'),
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const monitorCategories = pgTable('monitor_categories', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  platforms: text('platforms'),
+  keywords: text('keywords'),
+  creators: text('creators'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const contents = pgTable('contents', {
+  id: serial('id').primaryKey(),
+  categoryId: integer('category_id').references(() => monitorCategories.id),
+  platform: text('platform').notNull(),
+  title: text('title').notNull(),
+  author: text('author').notNull(),
+  date: text('date').notNull(),
+  likes: integer('likes').default(0),
+  comments: integer('comments').default(0),
+  shares: integer('shares').default(0),
+  readCount: integer('read_count').default(0),
+  lookCount: integer('look_count').default(0),
+  digest: text('digest'),
+  content: text('content'),
+  url: text('url').notNull(),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const reports = pgTable('reports', {
+  id: serial('id').primaryKey(),
+  categoryId: integer('category_id').references(() => monitorCategories.id),
+  date: text('date').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const insights = pgTable('insights', {
+  id: serial('id').primaryKey(),
+  reportId: integer('report_id').references(() => reports.id),
+  type: text('type').notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const topics = pgTable('topics', {
+  id: serial('id').primaryKey(),
+  reportId: integer('report_id').references(() => reports.id),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  reason: text('reason').notNull(),
+  potential: text('potential').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wechatAccounts = pgTable('wechat_accounts', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  appId: text('app_id').default(''),
+  appSecret: text('app_secret').default(''),
+  authorName: text('author_name').default(''),
+  isDefault: boolean('is_default').default(false),
+  targetAudience: text('target_audience'),
+  readerPersona: text('reader_persona'),
+  contentStyle: text('content_style'),
+  mainTopics: text('main_topics'),
+  tonePreference: text('tone_preference'),
+  accessToken: text('access_token'),
+  tokenExpiresAt: timestamp('token_expires_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const llmConfigs = pgTable('llm_configs', {
+  id: serial('id').primaryKey(),
+  provider: text('provider').notNull(),
+  apiKey: text('api_key').notNull(),
+  model: text('model').notNull(),
+  baseUrl: text('base_url'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const cacheRecords = pgTable('cache_records', {
+  id: serial('id').primaryKey(),
+  cacheKey: text('cache_key').notNull().unique(),
+  cacheData: text('cache_data').notNull(),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+});
+
+export const publishedArticles = pgTable('published_articles', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  content: text('content').default(''),
+  coverImage: text('cover_image').default(''),
+  images: text('images'),
+  wechatAccountId: integer('wechat_account_id').references(() => wechatAccounts.id),
+  topicId: integer('topic_id'),
+  publishStatus: text('publish_status').default('draft'),
+  publishTime: timestamp('publish_time', { mode: 'date' }),
+  wechatMediaId: text('wechat_media_id'),
+  wechatArticleUrl: text('wechat_article_url'),
+  sourceContentId: integer('source_content_id'),
+  sourceTitle: text('source_title'),
+  sourceReadCount: integer('source_read_count').default(0),
+  sourceLikeCount: integer('source_like_count').default(0),
+  sourceDigest: text('source_digest'),
+  articleUrl: text('article_url'),
+  readCount: integer('read_count').default(0),
+  likeCount: integer('like_count').default(0),
+  lookCount: integer('look_count').default(0),
+  shareCount: integer('share_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  analysisStatus: text('analysis_status').default('pending'),
+  analysisResult: text('analysis_result'),
+  analyzedAt: timestamp('analyzed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const articleStats = pgTable('article_stats', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').references(() => publishedArticles.id),
+  recordTime: timestamp('record_time', { mode: 'date' }).notNull().defaultNow(),
+  readCount: integer('read_count').default(0),
+  likeCount: integer('like_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  shareCount: integer('share_count').default(0),
+  collectCount: integer('collect_count').default(0),
+  readGrowth: integer('read_growth').default(0),
+  likeGrowth: integer('like_growth').default(0),
+  commentGrowth: integer('comment_growth').default(0),
+  shareGrowth: integer('share_growth').default(0),
+});
+
+export const articleStatsDaily = pgTable('article_stats_daily', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').references(() => publishedArticles.id),
+  date: text('date').notNull(),
+  totalRead: integer('total_read').default(0),
+  totalLike: integer('total_like').default(0),
+  totalComment: integer('total_comment').default(0),
+  totalShare: integer('total_share').default(0),
+  totalCollect: integer('total_collect').default(0),
+  dailyReadGrowth: integer('daily_read_growth').default(0),
+  dailyLikeGrowth: integer('daily_like_growth').default(0),
+  dailyCommentGrowth: integer('daily_comment_growth').default(0),
+  dailyShareGrowth: integer('daily_share_growth').default(0),
+});
+
+export const writingTechniques = pgTable('writing_techniques', {
+  id: serial('id').primaryKey(),
+  category: text('category').notNull(),
+  stage: text('stage').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  examples: text('examples'),
+  formulas: text('formulas'),
+  checklists: text('checklists'),
+  priority: integer('priority').default(0),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const techniqueCategories = pgTable('technique_categories', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull().unique(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const benchmarkAccounts = pgTable('benchmark_accounts', {
+  id: serial('id').primaryKey(),
+  platform: text('platform').notNull(),
+  accountId: text('account_id').notNull(),
+  accountName: text('account_name').notNull(),
+  avatar: text('avatar'),
+  description: text('description'),
+  followerCount: integer('follower_count').default(0),
+  note: text('note'),
+  tags: text('tags'),
+  isLowFollowerViral: boolean('is_low_follower_viral').default(false),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const viralTitles = pgTable('viral_titles', {
+  id: serial('id').primaryKey(),
+  benchmarkAccountId: integer('benchmark_account_id').references(() => benchmarkAccounts.id),
+  title: text('title').notNull(),
+  articleUrl: text('article_url'),
+  publishDate: text('publish_date'),
+  readCount: integer('read_count').default(0),
+  likeCount: integer('like_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  shareCount: integer('share_count').default(0),
+  titleModel: text('title_model'),
+  painPointLevel: text('pain_point_level'),
+  keywords: text('keywords'),
+  analysis: text('analysis'),
+  isCollected: boolean('is_collected').default(false),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const materialLibrary = pgTable('material_library', {
+  id: serial('id').primaryKey(),
+  type: text('type').notNull(),
+  source: text('source').notNull(),
+  sourceUrl: text('source_url'),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  keyPoints: text('key_points'),
+  quotes: text('quotes'),
+  dataPoints: text('data_points'),
+  tags: text('tags'),
+  topicId: integer('topic_id'),
+  isUsed: boolean('is_used').default(false),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const writingStyles = pgTable('writing_styles', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  titleStrategy: text('title_strategy'),
+  openingStyle: text('opening_style'),
+  articleFramework: text('article_framework'),
+  contentProgression: text('content_progression'),
+  endingDesign: text('ending_design'),
+  languageStyle: text('language_style'),
+  emotionalHooks: text('emotional_hooks'),
+  articleType: text('article_type'),
+  template: text('template'),
+  exampleTitles: text('example_titles'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const analysisTasks = pgTable('analysis_tasks', {
+  id: serial('id').primaryKey(),
+  keyword: text('keyword').notNull(),
+  status: text('status').default('pending'),
+  totalArticles: integer('total_articles').default(0),
+  analyzedArticles: integer('analyzed_articles').default(0),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at', { mode: 'date' }),
+  completedAt: timestamp('completed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const monitorLogs = pgTable('monitor_logs', {
+  id: serial('id').primaryKey(),
+  type: text('type').notNull(),
+  message: text('message'),
+  data: text('data'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const hotTopics = pgTable('hot_topics', {
+  id: serial('id').primaryKey(),
+  platform: text('platform').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  url: text('url'),
+  hotValue: integer('hot_value').default(0),
+  rank: integer('rank').default(0),
+  category: text('category'),
+  tags: text('tags'),
+  trendDirection: text('trend_direction').default('stable'),
+  predictedGrowth: real('predicted_growth').default(0),
+  isBlackHorse: boolean('is_black_horse').default(false),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const hotTopicHistory = pgTable('hot_topic_history', {
+  id: serial('id').primaryKey(),
+  topicId: integer('topic_id').references(() => hotTopics.id),
+  hotValue: integer('hot_value').default(0),
+  rank: integer('rank').default(0),
+  recordedAt: timestamp('recorded_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const articleRewrites = pgTable('article_rewrites', {
+  id: serial('id').primaryKey(),
+  sourceArticleIds: text('source_article_ids'),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  summary: text('summary'),
+  style: text('style'),
+  wordCount: integer('word_count').default(0),
+  aiScore: real('ai_score'),
+  humanScore: real('human_score'),
+  status: text('status').default('draft'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const analysisArticles = pgTable('analysis_articles', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').references(() => analysisTasks.id),
+  title: text('title').notNull(),
+  author: text('author'),
+  url: text('url'),
+  summary: text('summary'),
+  readCount: integer('read_count').default(0),
+  likeCount: integer('like_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  shareCount: integer('share_count').default(0),
+  engagementRate: real('engagement_rate').default(0),
+  publishDate: text('publish_date'),
+  content: text('content'),
+  keywords: text('keywords'),
+  analyzedAt: timestamp('analyzed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const insightReports = pgTable('insight_reports', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').references(() => analysisTasks.id),
+  topLikesArticles: text('top_likes_articles'),
+  topEngagementArticles: text('top_engagement_articles'),
+  wordCloud: text('word_cloud'),
+  insights: text('insights'),
+  topicSuggestions: text('topic_suggestions'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const generatedArticles = pgTable('generated_articles', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').references(() => analysisTasks.id),
+  reportId: integer('report_id').references(() => insightReports.id),
+  topicId: integer('topic_id'),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  summary: text('summary'),
+  images: text('images'),
+  style: text('style'),
+  wordCount: integer('word_count').default(0),
+  status: text('status').default('draft'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wechatAuth = pgTable('wechat_auth', {
+  id: serial('id').primaryKey(),
+  token: text('token').notNull(),
+  cookie: text('cookie'),
+  nickname: text('nickname'),
+  avatar: text('avatar'),
+  status: text('status').default('pending'),
+  expiresAt: timestamp('expires_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wechatSubscriptions = pgTable('wechat_subscriptions', {
+  id: serial('id').primaryKey(),
+  biz: text('biz').notNull().unique(),
+  name: text('name').notNull(),
+  alias: text('alias'),
+  avatar: text('avatar'),
+  description: text('description'),
+  lastArticleTime: timestamp('last_article_time', { mode: 'date' }),
+  totalArticles: integer('total_articles').default(0),
+  monitorEnabled: boolean('monitor_enabled').default(true),
+  monitorInterval: integer('monitor_interval').default(300),
+  lastMonitorAt: timestamp('last_monitor_at', { mode: 'date' }),
+  status: text('status').default('active'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const collectedArticles = pgTable('collected_articles', {
+  id: serial('id').primaryKey(),
+  subscriptionId: integer('subscription_id').references(() => wechatSubscriptions.id),
+  msgId: text('msg_id').notNull().unique(),
+  title: text('title').notNull(),
+  author: text('author'),
+  digest: text('digest'),
+  content: text('content'),
+  contentHtml: text('content_html'),
+  coverImage: text('cover_image'),
+  localImages: text('local_images'),
+  sourceUrl: text('source_url').notNull(),
+  publishTime: timestamp('publish_time', { mode: 'date' }),
+  readCount: integer('read_count').default(0),
+  likeCount: integer('like_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  recommendCount: integer('recommend_count').default(0),
+  shareCount: integer('share_count').default(0),
+  engagementRate: real('engagement_rate').default(0),
+  isDeleted: boolean('is_deleted').default(false),
+  deletedAt: timestamp('deleted_at', { mode: 'date' }),
+  snapshotPath: text('snapshot_path'),
+  markdownPath: text('markdown_path'),
+  pdfPath: text('pdf_path'),
+  tags: text('tags'),
+  note: text('note'),
+  isFavorite: boolean('is_favorite').default(false),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const collectTasks = pgTable('collect_tasks', {
+  id: serial('id').primaryKey(),
+  subscriptionId: integer('subscription_id').references(() => wechatSubscriptions.id),
+  type: text('type').notNull(),
+  status: text('status').default('pending'),
+  totalArticles: integer('total_articles').default(0),
+  collectedArticles: integer('collected_articles').default(0),
+  failedArticles: integer('failed_articles').default(0),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at', { mode: 'date' }),
+  completedAt: timestamp('completed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wechatDrafts = pgTable('wechat_drafts', {
+  id: serial('id').primaryKey(),
+  mediaId: text('media_id').unique(),
+  title: text('title').notNull(),
+  author: text('author'),
+  digest: text('digest'),
+  content: text('content'),
+  contentHtml: text('content_html'),
+  coverImage: text('cover_image'),
+  sourceUrl: text('source_url'),
+  needOpenComment: boolean('need_open_comment').default(false),
+  onlyFansCanComment: boolean('only_fans_can_comment').default(false),
+  articleId: text('article_id'),
+  status: text('status').default('draft'),
+  createTime: timestamp('create_time', { mode: 'date' }),
+  updateTime: timestamp('update_time', { mode: 'date' }),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }),
+  note: text('note'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const platformPosts = pgTable('platform_posts', {
+  id: serial('id').primaryKey(),
+  platform: text('platform').notNull(),
+  postId: text('post_id').notNull(),
+  title: text('title'),
+  content: text('content'),
+  authorId: text('author_id'),
+  authorName: text('author_name'),
+  authorAvatar: text('author_avatar'),
+  coverImage: text('cover_image'),
+  images: text('images'),
+  videoUrl: text('video_url'),
+  likeCount: integer('like_count').default(0),
+  commentCount: integer('comment_count').default(0),
+  shareCount: integer('share_count').default(0),
+  collectCount: integer('collect_count').default(0),
+  viewCount: integer('view_count').default(0),
+  publishTime: timestamp('publish_time', { mode: 'date' }),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }),
+  tags: text('tags'),
+  category: text('category'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const postComments = pgTable('post_comments', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').references(() => platformPosts.id),
+  platform: text('platform').notNull(),
+  commentId: text('comment_id').notNull(),
+  parentId: text('parent_id'),
+  rootId: text('root_id'),
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userAvatar: text('user_avatar'),
+  content: text('content').notNull(),
+  likeCount: integer('like_count').default(0),
+  replyCount: integer('reply_count').default(0),
+  isAuthor: boolean('is_author').default(false),
+  publishTime: timestamp('publish_time', { mode: 'date' }),
+  sentiment: text('sentiment'),
+  keywords: text('keywords'),
+  fetchedAt: timestamp('fetched_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const creators = pgTable('creators', {
+  id: serial('id').primaryKey(),
+  platform: text('platform').notNull(),
+  creatorId: text('creator_id').notNull(),
+  name: text('name').notNull(),
+  avatar: text('avatar'),
+  description: text('description'),
+  followerCount: integer('follower_count').default(0),
+  followingCount: integer('following_count').default(0),
+  postCount: integer('post_count').default(0),
+  likeCount: integer('like_count').default(0),
+  isVerified: boolean('is_verified').default(false),
+  verifyType: text('verify_type'),
+  monitorEnabled: boolean('monitor_enabled').default(false),
+  lastFetchAt: timestamp('last_fetch_at', { mode: 'date' }),
+  note: text('note'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const commentWordCloud = pgTable('comment_word_cloud', {
+  id: serial('id').primaryKey(),
+  postId: integer('post_id').references(() => platformPosts.id),
+  platform: text('platform').notNull(),
+  totalComments: integer('total_comments').default(0),
+  positiveCount: integer('positive_count').default(0),
+  negativeCount: integer('negative_count').default(0),
+  neutralCount: integer('neutral_count').default(0),
+  topKeywords: text('top_keywords'),
+  topEmojis: text('top_emojis'),
+  sentimentScore: real('sentiment_score').default(0),
+  generatedAt: timestamp('generated_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const crawlTasks = pgTable('crawl_tasks', {
+  id: serial('id').primaryKey(),
+  platform: text('platform').notNull(),
+  type: text('type').notNull(),
+  keyword: text('keyword'),
+  postId: text('post_id'),
+  creatorId: text('creator_id'),
+  status: text('status').default('pending'),
+  totalItems: integer('total_items').default(0),
+  crawledItems: integer('crawled_items').default(0),
+  failedItems: integer('failed_items').default(0),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at', { mode: 'date' }),
+  completedAt: timestamp('completed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wordCloudCache = pgTable('word_cloud_cache', {
+  id: serial('id').primaryKey(),
+  cacheKey: text('cache_key').notNull().unique(),
+  basicWordCloud: text('basic_word_cloud'),
+  aiWordCloud: text('ai_word_cloud'),
+  articleCount: integer('article_count').default(0),
+  articleHash: text('article_hash'),
+  aiProcessedAt: timestamp('ai_processed_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const promptConfigs = pgTable('prompt_configs', {
+  id: serial('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  template: text('template').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const wechatSessions = pgTable('wechat_sessions', {
+  id: serial('id').primaryKey(),
+  authKey: text('auth_key').notNull().unique(),
+  token: text('token').notNull(),
+  cookies: text('cookies').notNull(),
+  nickname: text('nickname'),
+  avatar: text('avatar'),
+  status: text('status').default('active'),
+  expiresAt: timestamp('expires_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const layoutStyles = pgTable('layout_styles', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  headerStyle: text('header_style').default('bold'),
+  paragraphSpacing: text('paragraph_spacing').default('medium'),
+  listStyle: text('list_style').default('number'),
+  highlightStyle: text('highlight_style').default('emoji'),
+  emojiUsage: text('emoji_usage').default('moderate'),
+  quoteStyle: text('quote_style').default('block'),
+  imagePosition: text('image_position').default('center'),
+  calloutStyle: text('callout_style').default('box'),
+  colorScheme: text('color_scheme').default('default'),
+  fontStyle: text('font_style').default('sans-serif'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const appSettings = pgTable('app_settings', {
+  id: serial('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const optimizationSuggestions = pgTable('optimization_suggestions', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').references(() => publishedArticles.id),
+  gapType: text('gap_type').notNull(),
+  gapDescription: text('gap_description'),
+  sourceStrength: text('source_strength'),
+  rewriteWeakness: text('rewrite_weakness'),
+  suggestion: text('suggestion').notNull(),
+  priority: text('priority').default('medium'),
+  performanceRatio: real('performance_ratio').default(0),
+  status: text('status').default('pending'),
+  reviewedAt: timestamp('reviewed_at', { mode: 'date' }),
+  reviewerNote: text('reviewer_note'),
+  appliedToPrompt: boolean('applied_to_prompt').default(false),
+  appliedAt: timestamp('applied_at', { mode: 'date' }),
+  effectivenessScore: real('effectiveness_score'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});

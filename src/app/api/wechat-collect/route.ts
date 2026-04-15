@@ -4,6 +4,30 @@ import { wechatAuth, wechatSubscriptions, collectedArticles, collectTasks, mater
 import { eq, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
+// 安全：验证URL是否来自微信公众号文章
+function validateWechatUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // 只允许微信文章域名
+    const allowedDomains = [
+      'mp.weixin.qq.com',
+      'wxn.qq.com',
+      'wenu.qq.com',
+    ];
+    return allowedDomains.some(domain => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+// 安全：将微信时间戳转换为Date（自动检测秒/毫秒）
+function parseWechatTimestamp(timestamp: number | null | undefined): Date | null {
+  if (!timestamp) return null;
+  // 微信时间戳通常是10位（秒），如果不是10位数字，则认为是毫秒
+  const msTimestamp = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+  return new Date(msTimestamp);
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
@@ -410,7 +434,7 @@ export async function POST(request: NextRequest) {
             contentHtml: article.contentHtml,
             coverImage: article.coverImage,
             sourceUrl: article.sourceUrl,
-            publishTime: article.publishTime ? new Date(article.publishTime * 1000) : null,
+            publishTime: parseWechatTimestamp(article.publishTime),
             readCount: article.readCount,
             likeCount: article.likeCount,
           });
@@ -647,10 +671,18 @@ async function searchBiz(cookie: string, query: string, begin: number = 0, count
   
   let publishPage = data.publish_page;
   if (typeof publishPage === 'string') {
-    publishPage = JSON.parse(publishPage);
+    try {
+      publishPage = JSON.parse(publishPage);
+    } catch (parseError) {
+      throw new Error('解析搜索结果失败');
+    }
   }
-  
-  const results = publishPage?.search_result?.result || [];
+
+  if (!publishPage || typeof publishPage !== 'object') {
+    throw new Error('搜索结果格式异常');
+  }
+
+  const results = (publishPage as any)?.search_result?.result || [];
   
   return results.map((item: { fakeid?: string; nickname?: string; alias?: string; round_head_img?: string; signature?: string }) => ({
     biz: item.fakeid || '',
@@ -662,6 +694,11 @@ async function searchBiz(cookie: string, query: string, begin: number = 0, count
 }
 
 async function collectArticleByUrl(articleUrl: string) {
+  // 安全：验证URL来源，防止SSRF攻击
+  if (!validateWechatUrl(articleUrl)) {
+    throw new Error('只支持采集微信公众平台文章 (mp.weixin.qq.com)');
+  }
+
   const [auth] = await db().select().from(wechatAuth).where(eq(wechatAuth.status, 'active')).limit(1);
   if (!auth || !auth.cookie) {
     throw new Error('请先完成微信授权');
@@ -845,7 +882,7 @@ async function collectArticleByUrl(articleUrl: string) {
     contentHtml,
     coverImage: cover,
     sourceUrl: articleUrl,
-    publishTime: createTime ? new Date(createTime * 1000) : null,
+    publishTime: parseWechatTimestamp(createTime),
     readCount: 0,
     likeCount: 0,
   }).returning();

@@ -1,13 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, initDatabase } from '@/lib/db';
 import { users, userSessions } from '@/lib/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'crypto';
+
+initDatabase();
 
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
 
+// 获取密码哈希salt（可配置）
+function getPasswordSalt(): string {
+  // 生产环境必须通过环境变量配置
+  if (process.env.NODE_ENV === 'production') {
+    const salt = process.env.PASSWORD_HASH_SALT;
+    if (!salt) {
+      throw new Error('【安全警告】生产环境必须设置 PASSWORD_HASH_SALT 环境变量');
+    }
+    return salt;
+  }
+  // 开发环境使用默认值但给出警告
+  return process.env.PASSWORD_HASH_SALT || 'content-monitor-dev-salt';
+}
+
+// 使用scrypt进行更安全的哈希（可配置迭代次数）
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'content-monitor-salt').digest('hex');
+  const salt = getPasswordSalt();
+  // scrypt是内存硬的，比SHA256更适合密码哈希
+  const derived = scryptSync(password, salt, 32, {
+    N: 16384,
+    r: 8,
+    p: 1,
+  });
+  return derived.toString('hex');
+}
+
+// 验证密码（使用timing-safe比较防止时序攻击）
+function verifyPassword(password: string, hash: string): boolean {
+  const salt = getPasswordSalt();
+  const derived = scryptSync(password, salt, 32, {
+    N: 16384,
+    r: 8,
+    p: 1,
+  });
+  const hashBuffer = Buffer.from(hash, 'hex');
+  if (hashBuffer.length !== derived.length) {
+    return false;
+  }
+  return timingSafeEqual(derived, hashBuffer);
 }
 
 function generateToken(): string {
@@ -22,9 +61,16 @@ export async function POST(request: NextRequest) {
 
     if (action === 'register') {
       if (!username || !email || !password) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '用户名、邮箱和密码不能为空' 
+        return NextResponse.json({
+          success: false,
+          error: '用户名、邮箱和密码不能为空'
+        }, { status: 400 });
+      }
+
+      if (password.length < 8) {
+        return NextResponse.json({
+          success: false,
+          error: '密码长度至少8位'
         }, { status: 400 });
       }
 
@@ -33,9 +79,9 @@ export async function POST(request: NextRequest) {
       ).limit(1);
 
       if (existingUser.length > 0) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '用户名已存在' 
+        return NextResponse.json({
+          success: false,
+          error: '用户名已存在'
         }, { status: 400 });
       }
 
@@ -44,9 +90,9 @@ export async function POST(request: NextRequest) {
       ).limit(1);
 
       if (existingEmail.length > 0) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '邮箱已被注册' 
+        return NextResponse.json({
+          success: false,
+          error: '邮箱已被注册'
         }, { status: 400 });
       }
 
@@ -62,7 +108,7 @@ export async function POST(request: NextRequest) {
 
       const token = generateToken();
       const expiresAt = new Date(Date.now() + SESSION_DURATION);
-      
+
       await database.insert(userSessions).values({
         userId: newUser[0].id,
         token,
@@ -94,37 +140,41 @@ export async function POST(request: NextRequest) {
 
     if (action === 'login') {
       if (!username || !password) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '用户名和密码不能为空' 
+        return NextResponse.json({
+          success: false,
+          error: '用户名和密码不能为空'
         }, { status: 400 });
       }
 
-      const passwordHash = hashPassword(password);
       const user = await database.select().from(users).where(
-        and(
-          eq(users.username, username),
-          eq(users.passwordHash, passwordHash)
-        )
+        eq(users.username, username)
       ).limit(1);
 
       if (user.length === 0) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '用户名或密码错误' 
+        return NextResponse.json({
+          success: false,
+          error: '用户名或密码错误'
+        }, { status: 401 });
+      }
+
+      // 使用timing-safe比较验证密码
+      if (!verifyPassword(password, user[0].passwordHash)) {
+        return NextResponse.json({
+          success: false,
+          error: '用户名或密码错误'
         }, { status: 401 });
       }
 
       if (!user[0].isActive) {
-        return NextResponse.json({ 
-          success: false, 
-          error: '账号已被禁用' 
+        return NextResponse.json({
+          success: false,
+          error: '账号已被禁用'
         }, { status: 403 });
       }
 
       const token = generateToken();
       const expiresAt = new Date(Date.now() + SESSION_DURATION);
-      
+
       await database.insert(userSessions).values({
         userId: user[0].id,
         token,
@@ -160,27 +210,27 @@ export async function POST(request: NextRequest) {
 
     if (action === 'logout') {
       const token = request.cookies.get('auth_token')?.value;
-      
+
       if (token) {
         await database.delete(userSessions).where(eq(userSessions.token, token));
       }
 
       const response = NextResponse.json({ success: true });
       response.cookies.delete('auth_token');
-      
+
       return response;
     }
 
-    return NextResponse.json({ 
-      success: false, 
-      error: '未知操作' 
+    return NextResponse.json({
+      success: false,
+      error: '未知操作'
     }, { status: 400 });
 
   } catch (error) {
     console.error('Auth error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: '服务器错误' 
+    return NextResponse.json({
+      success: false,
+      error: '服务器错误'
     }, { status: 500 });
   }
 }
@@ -189,11 +239,11 @@ export async function GET(request: NextRequest) {
   try {
     const database = db();
     const token = request.cookies.get('auth_token')?.value;
-    
+
     if (!token) {
-      return NextResponse.json({ 
-        success: false, 
-        authenticated: false 
+      return NextResponse.json({
+        success: false,
+        authenticated: false
       });
     }
 
@@ -208,9 +258,9 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (session.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        authenticated: false 
+      return NextResponse.json({
+        success: false,
+        authenticated: false
       });
     }
 
@@ -220,9 +270,9 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (user.length === 0 || !user[0].isActive) {
-      return NextResponse.json({ 
-        success: false, 
-        authenticated: false 
+      return NextResponse.json({
+        success: false,
+        authenticated: false
       });
     }
 
@@ -241,9 +291,9 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Auth check error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      authenticated: false 
+    return NextResponse.json({
+      success: false,
+      authenticated: false
     });
   }
 }

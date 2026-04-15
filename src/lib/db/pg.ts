@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import * as schema from './schema.pg';
 
 const databaseUrl = process.env.DATABASE_URL || 'postgresql://content_monitor:content_monitor_pass@localhost:5432/content_monitor_db';
@@ -28,24 +28,5 @@ function getDb(): ReturnType<typeof drizzle> {
   return db!;
 }
 
-// For compatibility with existing code that uses getSqlite()
-function getSqlite() {
-  return {
-    exec: async (sql: string) => {
-      const client = await getPool().connect();
-      try {
-        await client.query(sql);
-      } finally {
-        client.release();
-      }
-    }
-  };
-}
-
-// For backward compatibility - tables are created via drizzle migrations
-function initDatabase() {
-  // PostgreSQL tables are created via drizzle-kit push
-}
-
-export { getDb as db, getPool, getSqlite, initDatabase };
+export { getDb as db, getPool };
 export * from './schema.pg';

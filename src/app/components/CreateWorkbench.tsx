@@ -8,6 +8,9 @@ interface CreateWorkbenchProps {
     apiKey: string;
     model: string;
     baseUrl?: string;
+    // 安全：新增字段
+    apiKeyHint?: string | null;
+    hasApiKey?: boolean;
   };
   topics: Array<{
     id: string;

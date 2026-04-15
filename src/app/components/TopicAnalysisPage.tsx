@@ -7,6 +7,9 @@ interface LLMConfig {
   apiKey: string;
   model: string;
   baseUrl?: string;
+  // 安全：新增字段
+  apiKeyHint?: string | null;
+  hasApiKey?: boolean;
 }
 
 function TopicAnalysisPage() {
@@ -39,6 +42,9 @@ function TopicAnalysisPage() {
     apiKey: string;
     model: string;
     baseUrl?: string | null;
+    // 安全：新增字段
+    apiKeyHint?: string | null;
+    hasApiKey?: boolean;
   } | null>(null);
   const [stats, setStats] = useState({
     totalArticles: 0,
@@ -84,13 +90,16 @@ function TopicAnalysisPage() {
   const loadLLMConfig = async () => {
     try {
       const res = await fetch('/api/llm-config');
-      const config = await res.json();
-      if (config) {
+      const result = await res.json();
+      if (result && result.success && result.data) {
+        // 安全：API不再返回实际API Key
         setLlmConfig({
-          provider: (config.provider as LLMConfig['provider']) || 'minimax',
-          apiKey: config.apiKey || '',
-          model: config.model || 'MiniMax-M2.7',
-          baseUrl: config.baseUrl || undefined,
+          provider: (result.data.provider as LLMConfig['provider']) || 'minimax',
+          apiKey: result.data.hasApiKey ? '******' : '',
+          model: result.data.model || 'MiniMax-M2.7',
+          baseUrl: result.data.baseUrl || undefined,
+          apiKeyHint: result.data.apiKeyHint,
+          hasApiKey: result.data.hasApiKey,
         });
       }
     } catch (error) {

@@ -78,3 +78,8 @@ task_plan.md
 *_spec.md
 CHANGELOG.md
 DEVELOPMENT.md
+DEPLOYMENT.md
+
+# Environment files - 包含API密钥等敏感信息
+.env.production
+content-monitor.env

@@ -20,7 +20,7 @@
 
 ## 技术栈
 - **前端**: Next.js 15 + React 19 + TypeScript + Tailwind CSS
-- **后端**: Next.js App Router + SQLite + Drizzle ORM
+- **后端**: Next.js App Router + PostgreSQL + Drizzle ORM
 - **AI**: 支持 OpenAI / DeepSeek / MiniMax 等多种 LLM
 - **搜索**: Tavily / 天工 / MiniMax / 维基百科 / Bing / DuckDuckGo / 百度 / Google
 - **部署**: Docker + Docker Compose

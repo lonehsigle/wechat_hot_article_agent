@@ -1,6 +1,6 @@
-import { db, getSqlite } from './index';
+import { db, getPool } from './index';
 import { encrypt } from './crypto';
-import { monitorCategories, contents, reports, insights, topics, wechatAccounts, llmConfigs, cacheRecords, publishedArticles, articleStats, articleStatsDaily, writingTechniques, techniqueCategories } from './schema';
+import { monitorCategories, contents, reports, insights, topics, wechatAccounts, llmConfigs, cacheRecords, publishedArticles, articleStats, articleStatsDaily, writingTechniques, techniqueCategories } from './schema.pg';
 import { eq, desc, lt, asc, and } from 'drizzle-orm';
 
 export async function getMonitorCategories() {
@@ -166,16 +166,19 @@ export async function deleteWechatAccount(id: number) {
 
 export async function setDefaultWechatAccount(id: number) {
   const database = db();
-  const sqlite = getSqlite();
+  const pool = getPool();
+  const client = await pool.connect();
   try {
-    sqlite.exec('BEGIN');
+    await client.query('BEGIN');
     await database.update(wechatAccounts).set({ isDefault: false });
     await database.update(wechatAccounts).set({ isDefault: true, updatedAt: new Date() }).where(eq(wechatAccounts.id, id));
-    sqlite.exec('COMMIT');
+    await client.query('COMMIT');
   } catch (error) {
-    sqlite.exec('ROLLBACK');
+    await client.query('ROLLBACK');
     console.error('设置默认微信账号失败:', error);
     throw error;
+  } finally {
+    client.release();
   }
 }
 

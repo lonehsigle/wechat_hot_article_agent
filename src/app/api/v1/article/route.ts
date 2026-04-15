@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { USER_AGENT } from '@/lib/wechat/proxy-request';
 
 export async function GET(request: NextRequest) {
-  const authKey = request.nextUrl.searchParams.get('auth_key') || 
+  const authKey = request.nextUrl.searchParams.get('auth_key') ||
                   request.headers.get('x-auth-key');
   const fakeid = request.nextUrl.searchParams.get('fakeid');
   const keyword = request.nextUrl.searchParams.get('keyword') || '';
@@ -70,14 +70,39 @@ export async function GET(request: NextRequest) {
     const resp = await response.json();
 
     if (resp.base_resp && resp.base_resp.ret === 0) {
-      const publish_page = JSON.parse(resp.publish_page);
-      const articles = publish_page.publish_list
-        .filter((item: { publish_info: string }) => !!item.publish_info)
-        .flatMap((item: { publish_info: string }) => {
-          const publish_info = JSON.parse(item.publish_info);
-          return publish_info.appmsgex;
+      // 安全：JSON.parse添加错误处理
+      let publish_page;
+      try {
+        publish_page = typeof resp.publish_page === 'string'
+          ? JSON.parse(resp.publish_page)
+          : resp.publish_page;
+      } catch (parseError) {
+        console.error('解析publish_page失败:', parseError);
+        return NextResponse.json({
+          base_resp: { ret: -1, err_msg: '数据解析失败，请重试' },
         });
-      
+      }
+
+      if (!publish_page || !Array.isArray(publish_page.publish_list)) {
+        return NextResponse.json({
+          base_resp: { ret: -1, err_msg: '数据格式异常' },
+        });
+      }
+
+      const articles = publish_page.publish_list
+        .filter((item: { publish_info?: string }) => !!item.publish_info)
+        .flatMap((item: { publish_info?: string }) => {
+          try {
+            const publish_info = typeof item.publish_info === 'string'
+              ? JSON.parse(item.publish_info)
+              : item.publish_info;
+            return publish_info?.appmsgex || [];
+          } catch (parseError) {
+            console.error('解析publish_info失败:', parseError);
+            return [];
+          }
+        });
+
       return NextResponse.json({
         base_resp: resp.base_resp,
         articles: articles,
@@ -87,6 +112,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(resp);
   } catch (error) {
+    console.error('获取文章列表失败:', error);
     return NextResponse.json({
       base_resp: { ret: -1, err_msg: '获取文章列表接口失败，请重试' },
     });

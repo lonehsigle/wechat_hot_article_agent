@@ -142,11 +142,11 @@ export async function POST(request: NextRequest) {
       const plainText = content.replace(/<[^>]+>/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
       const digest = plainText.length > 117 ? plainText.slice(0, 117) + '...' : plainText;
 
-      const accountConfig = await db().select().from(publishedArticles).limit(1);
-      const thumbId = thumbMediaId || (accountConfig[0]?.coverImage ? undefined : undefined);
+      // thumbMediaId优先，如果没有则不设置封面图
+      const draftThumbId = thumbMediaId || '';
 
       const draftResult = await createDraft(accountId, [{
-        thumbMediaId: thumbMediaId || '',
+        thumbMediaId: draftThumbId,
         author: account.authorName,
         title,
         content: wechatHtml,

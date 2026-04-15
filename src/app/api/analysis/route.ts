@@ -67,7 +67,21 @@ export async function POST(request: NextRequest) {
         analyzedArticles: 0,
       }).returning();
 
-      analyzeKeyword(task.id, keyword.trim());
+      // 安全：正确处理异步错误
+      analyzeKeyword(task.id, keyword.trim()).catch((error) => {
+        console.error('关键词分析任务失败:', error);
+        // 更新任务状态为失败
+        database.update(analysisTasks)
+          .set({
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : '未知错误',
+            completedAt: new Date(),
+          })
+          .where(eq(analysisTasks.id, task.id))
+          .catch((updateError) => {
+            console.error('更新任务状态失败:', updateError);
+          });
+      });
 
       return NextResponse.json({ success: true, taskId: task.id });
     }

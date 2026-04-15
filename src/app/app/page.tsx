@@ -139,6 +139,9 @@ interface LLMConfig {
   apiKey: string;
   model: string;
   baseUrl?: string;
+  // 安全：新增字段
+  apiKeyHint?: string | null;
+  hasApiKey?: boolean;
 }
 
 const mockCategories: MonitorCategory[] = [
@@ -675,12 +678,18 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/llm-config');
       const data = await res.json();
-      if (data) {
+      if (data && data.success && data.data) {
+        // 安全：API不再返回实际API Key
+        // 只显示掩码提示和配置状态
         setLlmConfig({
-          provider: (data.provider as LLMConfig['provider']) || 'minimax',
-          apiKey: data.apiKey || '',
-          model: data.model || 'MiniMax-M2.7',
-          baseUrl: data.baseUrl || undefined,
+          provider: (data.data.provider as LLMConfig['provider']) || 'minimax',
+          // 安全：前端不存储实际密钥，只存掩码标记
+          apiKey: data.data.hasApiKey ? '******' : '',
+          model: data.data.model || 'MiniMax-M2.7',
+          baseUrl: data.data.baseUrl || undefined,
+          // 新增：用于UI显示
+          apiKeyHint: data.data.apiKeyHint,
+          hasApiKey: data.data.hasApiKey,
         });
       }
     } catch (error) {
@@ -717,7 +726,7 @@ export default function AppPage() {
   };
 
   const generateArticles = async () => {
-    if (!llmConfig.apiKey) {
+    if (!llmConfig.hasApiKey) {
       alert('请先在设置中配置 LLM API Key');
       return;
     }
@@ -1377,14 +1386,26 @@ export default function AppPage() {
                       </select>
                     </div>
                     <div style={styles.formGroup}>
-                      <label style={styles.formLabel}>API Key</label>
+                      <label style={styles.formLabel}>
+                        API Key
+                        {llmConfig.hasApiKey && (
+                          <span style={{ marginLeft: 8, fontSize: 12, color: '#10b981' }}>
+                            ✓ 已配置 ({llmConfig.apiKeyHint || '****'})
+                          </span>
+                        )}
+                      </label>
                       <input
                         type="password"
                         style={styles.formInput}
-                        placeholder="输入 API Key"
+                        placeholder={llmConfig.hasApiKey ? "输入新密钥可重新配置，留空则保留原配置" : "输入 API Key"}
                         value={llmConfig.apiKey}
                         onChange={(e) => setLlmConfig(prev => ({ ...prev, apiKey: e.target.value }))}
                       />
+                      {llmConfig.hasApiKey && (
+                        <small style={{ color: '#6b7280', fontSize: 11 }}>
+                          如需更换密钥，请输入新密钥后保存
+                        </small>
+                      )}
                     </div>
                     <div style={styles.formGroup}>
                       <label style={styles.formLabel}>模型</label>
@@ -1479,14 +1500,36 @@ export default function AppPage() {
                       onClick={async () => {
                         setLoading(true);
                         try {
-                          await fetch('/api/llm-config', {
+                          // 安全：只有当用户输入了新密钥时才发送
+                          // 如果apiKey是占位符'******'，则不发送（保留原密钥）
+                          const payload: any = {
+                            provider: llmConfig.provider,
+                            model: llmConfig.model,
+                            baseUrl: llmConfig.baseUrl || null,
+                          };
+
+                          // 只有输入了新密钥（不是占位符）才发送
+                          if (llmConfig.apiKey && llmConfig.apiKey !== '******') {
+                            payload.apiKey = llmConfig.apiKey;
+                          }
+
+                          const res = await fetch('/api/llm-config', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(llmConfig),
+                            body: JSON.stringify(payload),
                           });
-                          alert('配置已保存');
+
+                          const result = await res.json();
+                          if (result.success) {
+                            // 重新加载配置（会获取新的掩码提示）
+                            await loadLLMConfig();
+                            alert(payload.apiKey ? '配置已保存，新密钥已加密存储' : '配置已保存（密钥未变更）');
+                          } else {
+                            alert('保存失败: ' + (result.error || '未知错误'));
+                          }
                         } catch (error) {
                           console.error('Failed to save LLM config:', error);
+                          alert('保存失败，请重试');
                         } finally {
                           setLoading(false);
                         }
