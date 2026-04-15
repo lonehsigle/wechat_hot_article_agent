@@ -9,15 +9,16 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data/content-monitor.db
+      - DATABASE_URL=postgresql://content_monitor:${PG_PASSWORD:-content_monitor_pass}@postgres:5432/content_monitor_db
       # 重要：生产环境必须设置以下变量
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-}
       - WECHAT_APPID=${WECHAT_APPID:-}
-      - WECHAT_SECRET=${WECHAT_SECRET:-}
-      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-    volumes:
-      - content-monitor-data:/app/data
+      - WECHAT_SECRET=${WECH...T:-}
+      - MINIMAX_API_KEY=${MINI...Y:-}
+      - DEEPSEEK_API_KEY=${DEEP...Y:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
@@ -33,6 +34,21 @@ services:
         reservations:
           memory: 512M
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=content_monitor
+      - POSTGRES_PASSWORD=${PG_PASSWORD:-content_monitor_pass}
+      - POSTGRES_DB=content_monitor_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U content_monitor -d content_monitor_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
-  content-monitor-data:
+  postgres-data:
     driver: local

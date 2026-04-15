@@ -11,7 +11,6 @@
     "@types/cheerio": "^0.22.35",
     "@types/pg": "^8.20.0",
     "@types/turndown": "^5.0.6",
-    "better-sqlite3": "^12.8.0",
     "cheerio": "^1.2.0",
     "docx": "^9.6.1",
     "dompurify": "^3.3.3",
@@ -28,7 +27,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/dompurify": "^3.2.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
