@@ -2,10 +2,35 @@
 import sqlite3
 import psycopg2
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
-SQLITE_PATH = "/Users/hsigle/Desktop/01/scys航海文字提取/content-monitor/data/content-monitor.db"
-PG_CONN = "postgresql://content_monitor:content_monitor_pass@localhost:5432/content_monitor_db"
+# Get the project root directory (where this script is located)
+PROJECT_ROOT = Path(__file__).parent
+SQLITE_PATH = PROJECT_ROOT / "data" / "content-monitor.db"
+
+# PostgreSQL connection - use DATABASE_URL env var or construct from parts
+def get_pg_connection():
+    """Get PostgreSQL connection from environment or default"""
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        return psycopg2.connect(database_url)
+    
+    # Fallback to individual env vars
+    pg_host = os.environ.get('PG_HOST', 'localhost')
+    pg_port = os.environ.get('PG_PORT', '5432')
+    pg_user = os.environ.get('PG_USER', 'content_monitor')
+    pg_password = os.environ.get('PG_PASSWORD', 'content_monitor_pass')
+    pg_db = os.environ.get('PG_DATABASE', 'content_monitor_db')
+    
+    return psycopg2.connect(
+        host=pg_host,
+        port=pg_port,
+        user=pg_user,
+        password=pg_password,
+        database=pg_db
+    )
 
 def unix_to_timestamp(unix_ts):
     if unix_ts:
@@ -98,11 +123,18 @@ def transform_llm_configs(data):
     }
 
 def main():
+    # Verify SQLite file exists
+    if not SQLITE_PATH.exists():
+        print(f"Error: SQLite database not found at {SQLITE_PATH}")
+        print("Please run this script from the project root directory.")
+        return
+    
+    print(f"SQLite path: {SQLITE_PATH}")
     print("Connecting to SQLite...")
-    sqlite_conn = sqlite3.connect(SQLITE_PATH)
+    sqlite_conn = sqlite3.connect(str(SQLITE_PATH))
     
     print("Connecting to PostgreSQL...")
-    pg_conn = psycopg2.connect(PG_CONN)
+    pg_conn = get_pg_connection()
     
     print("\nMigrating tables...")
     
