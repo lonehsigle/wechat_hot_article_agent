@@ -29,13 +29,25 @@
 
 ```bash
 # 安装依赖
-pnpm install
+npm install
+
+# 启动 PostgreSQL（确保本地运行）
+pg_isready -h localhost -p 5432
+
+# 推送数据库 schema
+npx drizzle-kit push
 
 # 启动开发服务器
-pnpm dev
+npm run dev
 
 # 访问
 http://localhost:3003
+```
+
+### 使用 Docker Compose 启动（推荐）
+
+```bash
+docker-compose up -d
 ```
 
 ## 环境变量配置
@@ -43,10 +55,13 @@ http://localhost:3003
 创建 `.env.local` 文件并配置以下变量：
 
 ```bash
+# 数据库配置
+DATABASE_URL=postgresql://content_monitor:your_password@localhost:5432/content_monitor_db
+
 # 微信公众号 API 配置
 WECHAT_APPID=your_wechat_appid
-WECHAT_SECRET=your_wechat_secret
-WECHAT_AUTHOR=默认作者名称
+WECHAT_SECRET=your_w...cret
+WECHAT_AUTHOR=***
 
 # 图片源 API Keys（部分功能免费）
 UNSPLASH_ACCESS_KEY=your_unsplash_access_key
