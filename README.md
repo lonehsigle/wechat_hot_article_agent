@@ -60,8 +60,8 @@ DATABASE_URL=postgresql://content_monitor:your_password@localhost:5432/content_m
 
 # 微信公众号 API 配置
 WECHAT_APPID=your_wechat_appid
-WECHAT_SECRET=your_w...cret
-WECHAT_AUTHOR=***
+WECHAT_SECRET=your_wechat_secret
+WECHAT_AUTHOR=默认作者名称
 
 # 图片源 API Keys（部分功能免费）
 UNSPLASH_ACCESS_KEY=your_unsplash_access_key
