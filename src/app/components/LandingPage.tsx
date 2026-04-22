@@ -348,7 +348,16 @@ export default function LandingPage() {
                     <button 
                       type="button"
                       style={styles.switchBtn}
-                      onClick={() => setLoginMode('register')}
+                      onClick={() => {
+                        setLoginMode('register');
+                        setError('');
+                        setFormData({
+                          username: '',
+                          email: '',
+                          password: '',
+                          displayName: '',
+                        });
+                      }}
                     >
                       立即注册
                     </button>
@@ -359,7 +368,16 @@ export default function LandingPage() {
                     <button 
                       type="button"
                       style={styles.switchBtn}
-                      onClick={() => setLoginMode('login')}
+                      onClick={() => {
+                        setLoginMode('login');
+                        setError('');
+                        setFormData({
+                          username: '',
+                          email: '',
+                          password: '',
+                          displayName: '',
+                        });
+                      }}
                     >
                       立即登录
                     </button>
@@ -429,7 +447,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   registerBtn: {
     padding: '8px 16px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
     border: 'none',
     borderRadius: '6px',
     fontSize: '14px',
@@ -458,7 +476,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '24px',
   },
   heroHighlight: {
-    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+    background: 'linear-gradient(135deg, #E8652D, #f59e0b)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
   },
@@ -474,7 +492,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   primaryBtn: {
     padding: '14px 32px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
     border: 'none',
     borderRadius: '8px',
     fontSize: '16px',
@@ -624,7 +642,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stats: {
     padding: '64px 48px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
   },
   statsGrid: {
     display: 'flex',
@@ -693,7 +711,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   ctaBtn: {
     padding: '16px 48px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
     border: 'none',
     borderRadius: '8px',
     fontSize: '18px',
@@ -801,7 +819,7 @@ const styles: Record<string, React.CSSProperties> = {
   submitBtn: {
     width: '100%',
     padding: '14px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#E8652D',
     border: 'none',
     borderRadius: '8px',
     fontSize: '16px',
@@ -818,7 +836,7 @@ const styles: Record<string, React.CSSProperties> = {
   switchBtn: {
     background: 'none',
     border: 'none',
-    color: '#3b82f6',
+    color: '#E8652D',
     fontSize: '14px',
     fontWeight: '500',
     cursor: 'pointer',

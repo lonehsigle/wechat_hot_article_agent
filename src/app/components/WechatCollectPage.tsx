@@ -2,16 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
-// SSR 环境下 DOMPurify 需要 jsdom
-if (typeof window !== 'undefined' && typeof DOMPurify !== 'undefined') {
-  DOMPurify.addHook?.('afterSanitizeAttributes', (node) => {
-    // 保持默认行为
-  });
-}
-const safeSanitize = (html: string): string => {
+
+const safeSanitizeHtml = (html: string): string => {
   if (typeof window === 'undefined') return html;
   try {
-    return DOMPurify.sanitize(html);
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'em', 'strong', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'img', 'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'section', 'figure', 'figcaption', 'dl', 'dt', 'dd', 'sup', 'sub', 'hr'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel', 'data-src', 'data-type', 'id', 'colspan', 'rowspan'],
+    });
   } catch {
     return html;
   }
@@ -2172,7 +2170,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                               style={{ 
                                 padding: '16px',
                               }}
-                              dangerouslySetInnerHTML={{ __html: safeSanitize(article.contentHtml) }}
+                              dangerouslySetInnerHTML={{ __html: safeSanitizeHtml(article.contentHtml) }}
                               className="wechat-article-content"
                             />
                           ) : (
@@ -2538,7 +2536,11 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/wechat-collect?action=delete-article&articleId=${deletingArticleId}`);
+                    const res = await fetch('/api/wechat-collect', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'delete-article', id: deletingArticleId }),
+                    });
                     const data = await res.json();
                     if (data.success) {
                       setArticles(articles.filter(a => a.id !== deletingArticleId));
@@ -2744,7 +2746,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                     backgroundColor: '#fff',
                     minHeight: isFullscreenEdit ? 'calc(100vh - 250px)' : '300px',
                   }}
-                  dangerouslySetInnerHTML={{ __html: safeSanitize(editingArticle.contentHtml) }}
+                  dangerouslySetInnerHTML={{ __html: safeSanitizeHtml(editingArticle.contentHtml) }}
                   className="wechat-article-content"
                 />
               )}

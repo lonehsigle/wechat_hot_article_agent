@@ -35,11 +35,11 @@ export async function POST(request: NextRequest) {
       return await handleGenerateArticleImages(content, title, imageCount);
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Image generation API error:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
 }
@@ -64,7 +64,7 @@ async function getMiniMaxConfig() {
 
 async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9') {
   if (!prompt) {
-    return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'prompt is required' }, { status: 400 });
   }
 
   const config = await getMiniMaxConfig();
@@ -101,9 +101,9 @@ async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9')
         const errorJson = JSON.parse(errorText);
         if (errorJson.base_resp) {
           return NextResponse.json({ 
-            error: `MiniMax API 错误: ${errorJson.base_resp.status_msg || errorText}`,
-            statusCode: errorJson.base_resp.status_code 
-          }, { status: response.status });
+          success: false, error: `MiniMax API 错误: ${errorJson.base_resp.status_msg || errorText}`,
+          statusCode: errorJson.base_resp.status_code 
+        }, { status: response.status });
         }
       } catch {
         // 不是 JSON 格式
@@ -135,29 +135,29 @@ async function handleGenerateImage(prompt: string, aspectRatio: string = '16:9')
       
       if (error.name === 'AbortError') {
         return NextResponse.json({ 
-          error: '请求超时（60秒），请检查网络连接或稍后重试' 
+          success: false, error: '请求超时（60秒），请检查网络连接或稍后重试' 
         }, { status: 504 });
       }
       
       if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
         return NextResponse.json({ 
-          error: `网络请求失败: ${error.message}。请检查：1) 网络连接是否正常 2) API Key 是否正确 3) 是否需要代理访问` 
+          success: false, error: `网络请求失败: ${error.message}。请检查：1) 网络连接是否正常 2) API Key 是否正确 3) 是否需要代理访问` 
         }, { status: 502 });
       }
       
       return NextResponse.json({ 
-        error: error.message 
+        success: false, error: error.message 
       }, { status: 500 });
     }
     return NextResponse.json({ 
-      error: 'Unknown error' 
+      success: false, error: 'Unknown error' 
     }, { status: 500 });
   }
 }
 
 async function handleGenerateArticleImages(content: string, title: string, imageCount: number = 3) {
   if (!content) {
-    return NextResponse.json({ error: 'content is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'content is required' }, { status: 400 });
   }
 
   const config = await getMiniMaxConfig();
@@ -320,5 +320,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
 }

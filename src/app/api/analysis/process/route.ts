@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         shareCount: article.shareCount,
         engagementRate,
         publishDate: article.publishDate,
-        keywords: summary.keywords,
+        keywords: JSON.stringify(summary.keywords),
         analyzedAt: new Date(),
       };
 
@@ -81,11 +81,11 @@ export async function POST(request: NextRequest) {
 
     await database.insert(insightReports).values({
       taskId,
-      topLikesArticles: report.topLikesArticles,
-      topEngagementArticles: report.topEngagementArticles,
-      wordCloud: report.wordCloud,
-      insights: report.insights,
-      topicSuggestions: report.topicSuggestions,
+      topLikesArticles: JSON.stringify(report.topLikesArticles),
+      topEngagementArticles: JSON.stringify(report.topEngagementArticles),
+      wordCloud: JSON.stringify(report.wordCloud),
+      insights: JSON.stringify(report.insights),
+      topicSuggestions: JSON.stringify(report.topicSuggestions),
     });
 
     await database.update(analysisTasks)
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(analysisTasks.id, taskId));
 
-    return NextResponse.json({ error: '分析失败' }, { status: 500 });
+    return NextResponse.json({ success: false, error: '分析失败' }, { status: 500 });
   }
 }
 

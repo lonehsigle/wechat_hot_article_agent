@@ -6,75 +6,98 @@ import { eq, desc, and, gt, inArray, or, like, sql } from 'drizzle-orm';
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get('action');
 
-  if (action === 'list') {
-    const platform = searchParams.get('platform');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    
-    let query = db().select().from(hotTopics).orderBy(desc(hotTopics.hotValue));
-    
-    if (platform && PLATFORMS.includes(platform as typeof PLATFORMS[number])) {
-      const topics = await query.where(eq(hotTopics.platform, platform)).limit(limit);
-      return NextResponse.json(topics);
+    if (action === 'list') {
+      const platform = searchParams.get('platform');
+      const limit = parseInt(searchParams.get('limit') || '50');
+      if (isNaN(limit) || limit < 1) {
+        return NextResponse.json({ success: false, error: 'Invalid limit parameter' }, { status: 400 });
+      }
+      
+      let query = db().select().from(hotTopics).orderBy(desc(hotTopics.hotValue));
+      
+      if (platform && PLATFORMS.includes(platform as typeof PLATFORMS[number])) {
+        const topics = await query.where(eq(hotTopics.platform, platform)).limit(limit);
+        return NextResponse.json({ success: true, topics });
+      }
+      
+      const topics = await query.limit(limit);
+      return NextResponse.json({ success: true, topics });
     }
-    
-    const topics = await query.limit(limit);
-    return NextResponse.json(topics);
-  }
 
-  if (action === 'black-horses') {
-    const topics = await db().select()
-      .from(hotTopics)
-      .where(eq(hotTopics.isBlackHorse, true))
-      .orderBy(desc(hotTopics.predictedGrowth))
-      .limit(20);
-    
-    return NextResponse.json(topics);
-  }
-
-  if (action === 'trending') {
-    const topics = await db().select()
-      .from(hotTopics)
-      .where(eq(hotTopics.trendDirection, 'up'))
-      .orderBy(desc(hotTopics.predictedGrowth))
-      .limit(20);
-    
-    return NextResponse.json(topics);
-  }
-
-  if (action === 'history') {
-    const topicId = searchParams.get('topicId');
-    if (!topicId) {
-      return NextResponse.json({ error: 'topicId is required' }, { status: 400 });
+    if (action === 'black-horses') {
+      const topics = await db().select()
+        .from(hotTopics)
+        .where(eq(hotTopics.isBlackHorse, true))
+        .orderBy(desc(hotTopics.predictedGrowth))
+        .limit(20);
+      
+      return NextResponse.json({ success: true, topics });
     }
-    
-    const history = await db().select()
-      .from(hotTopicHistory)
-      .where(eq(hotTopicHistory.topicId, parseInt(topicId)))
-      .orderBy(desc(hotTopicHistory.recordedAt))
-      .limit(24);
-    
-    return NextResponse.json(history);
-  }
 
-  if (action === 'search') {
-    const keyword = searchParams.get('keyword');
-    if (!keyword) {
-      return NextResponse.json({ error: 'keyword is required' }, { status: 400 });
+    if (action === 'trending') {
+      const topics = await db().select()
+        .from(hotTopics)
+        .where(eq(hotTopics.trendDirection, 'up'))
+        .orderBy(desc(hotTopics.predictedGrowth))
+        .limit(20);
+      
+      return NextResponse.json({ success: true, topics });
     }
-    
-    const topics = await db().select()
-      .from(hotTopics)
-      .where(like(hotTopics.title, `%${keyword}%`))
-      .orderBy(desc(hotTopics.hotValue))
-      .limit(50);
-    
-    return NextResponse.json(topics);
-  }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (action === 'history') {
+      const topicId = searchParams.get('topicId');
+      if (!topicId) {
+        return NextResponse.json({ success: false, error: 'topicId is required' }, { status: 400 });
+      }
+      
+      const parsedId = parseInt(topicId, 10);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, error: 'Invalid topicId' }, { status: 400 });
+      }
+
+      const history = await db().select()
+        .from(hotTopicHistory)
+        .where(eq(hotTopicHistory.topicId, parsedId))
+        .orderBy(desc(hotTopicHistory.recordedAt))
+        .limit(24);
+      
+      return NextResponse.json({ success: true, history });
+    }
+
+    if (action === 'search') {
+      const keyword = searchParams.get('keyword');
+      const page = parseInt(searchParams.get('page') || '1');
+      const pageSize = parseInt(searchParams.get('pageSize') || '20');
+      if (!keyword) {
+        return NextResponse.json({ success: false, error: 'keyword is required' }, { status: 400 });
+      }
+      if (isNaN(page) || page < 1 || isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
+        return NextResponse.json({ success: false, error: 'Invalid pagination parameters' }, { status: 400 });
+      }
+      
+      const sanitizedKeyword = keyword.replace(/[%_\\]/g, '\\$&');
+      const topics = await db().select()
+        .from(hotTopics)
+        .where(like(hotTopics.title, `%${sanitizedKeyword}%`))
+        .orderBy(desc(hotTopics.hotValue))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize);
+      
+      return NextResponse.json({ success: true, topics, page, pageSize });
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Hot topics API GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '获取热点数据失败' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -97,7 +120,7 @@ export async function POST(request: NextRequest) {
     if (action === 'fetch-platform') {
       const { platform } = body;
       if (!PLATFORMS.includes(platform)) {
-        return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Invalid platform' }, { status: 400 });
       }
       
       const cookie = cookies?.[platform];
@@ -118,14 +141,14 @@ export async function POST(request: NextRequest) {
     if (action === 'rewrite-articles') {
       const { articleIds, style } = body;
       if (!articleIds || !Array.isArray(articleIds) || articleIds.length === 0) {
-        return NextResponse.json({ error: 'articleIds is required' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'articleIds is required' }, { status: 400 });
       }
       
       const result = await rewriteArticles(articleIds, style);
       return NextResponse.json({ success: true, article: result });
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Hot topics API error:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '操作失败' }, { status: 500 });
@@ -481,8 +504,8 @@ ${combinedContent.substring(0, 2000)}
     summary: articles.map(a => a.digest).filter(Boolean).join(' '),
     style: style || '综合类',
     wordCount: rewrittenContent.length,
-    aiScore: Math.random() * 30 + 70,
-    humanScore: Math.random() * 20 + 80,
+    aiScore: null,
+    humanScore: null,
     status: 'draft',
   }).returning();
   

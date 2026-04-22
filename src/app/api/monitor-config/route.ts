@@ -23,34 +23,36 @@ export async function POST(request: NextRequest) {
     }
 
     for (const category of categories) {
-      const existing = await db()
-        .select()
-        .from(monitorCategories)
-        .where((t: any) => t.id.eq(category.id))
-        .limit(1);
+      if (category.id) {
+        const existing = await db()
+          .select()
+          .from(monitorCategories)
+          .where(eq(monitorCategories.id, category.id))
+          .limit(1);
 
-      if (existing.length > 0) {
-        await db()
-          .update(monitorCategories)
-          .set({
-            name: category.name,
-            platforms: category.platforms || [],
-            keywords: category.keywords || [],
-            creators: category.creators || [],
-            updatedAt: new Date(),
-          })
-          .where(eq(monitorCategories.id, category.id));
-      } else {
-        await db().insert(monitorCategories).values({
-          id: category.id,
-          name: category.name,
-          platforms: category.platforms || [],
-          keywords: category.keywords || [],
-          creators: category.creators || [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+        if (existing.length > 0) {
+          await db()
+            .update(monitorCategories)
+            .set({
+              name: category.name,
+              platforms: category.platforms || [],
+              keywords: category.keywords || [],
+              creators: category.creators || [],
+              updatedAt: new Date(),
+            })
+            .where(eq(monitorCategories.id, category.id));
+          continue;
+        }
       }
+
+      await db().insert(monitorCategories).values({
+        name: category.name,
+        platforms: category.platforms || [],
+        keywords: category.keywords || [],
+        creators: category.creators || [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     }
 
     return NextResponse.json({ success: true, message: 'Monitor config saved' });

@@ -40,7 +40,7 @@ function StyleAnalyzerPage() {
     try {
       const res = await fetch('/api/styles');
       const data = await res.json();
-      setWritingStyles(Array.isArray(data) ? data : []);
+      setWritingStyles(data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load writing styles:', error);
     }

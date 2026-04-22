@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       case 'config':
         return await getWxdownConfigAPI();
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Comment API error:', error);
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       case 'config':
         return await setWxdownConfigAPI(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Comment API error:', error);

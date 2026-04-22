@@ -29,8 +29,20 @@ function getProviderConfig(provider: string, baseUrl?: string | null): { endpoin
         'gpt-4o': 'gpt-4o',
         'gpt-4o-mini': 'gpt-4o-mini',
         'gpt-4-turbo': 'gpt-4-turbo',
+        'gpt-4': 'gpt-4',
         'gpt-3.5-turbo': 'gpt-3.5-turbo',
       },
+    },
+    anthropic: {
+      endpoint: 'https://api.anthropic.com/v1/messages',
+      modelMapping: {
+        'claude-3-5-sonnet-20241022': 'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022': 'claude-3-5-haiku-20241022',
+        'claude-3-opus-20240229': 'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229': 'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307': 'claude-3-haiku-20240307',
+      },
+      useAnthropicFormat: true,
     },
     zhipu: {
       endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
@@ -45,6 +57,7 @@ function getProviderConfig(provider: string, baseUrl?: string | null): { endpoin
       modelMapping: {
         'deepseek-chat': 'deepseek-chat',
         'deepseek-coder': 'deepseek-coder',
+        'deepseek-reasoner': 'deepseek-reasoner',
       },
     },
     kimi: {
@@ -56,14 +69,17 @@ function getProviderConfig(provider: string, baseUrl?: string | null): { endpoin
       },
     },
     minimax: {
-      endpoint: 'https://api.minimaxi.com/v1/chat/completions',
+      endpoint: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
       modelMapping: {
+        'MiniMax-Text-01': 'MiniMax-Text-01',
         'MiniMax-M2.5': 'MiniMax-M2.5',
         'MiniMax-M2.5-highspeed': 'MiniMax-M2.5-highspeed',
         'MiniMax-M2.7': 'MiniMax-M2.7',
         'MiniMax-M2.7-highspeed': 'MiniMax-M2.7-highspeed',
         'abab6.5-chat': 'abab6.5-chat',
         'abab6.5s-chat': 'abab6.5s-chat',
+        'abab6.5g-chat': 'abab6.5g-chat',
+        'abab6.5t-chat': 'abab6.5t-chat',
         'abab5.5-chat': 'abab5.5-chat',
       },
     },
@@ -71,9 +87,14 @@ function getProviderConfig(provider: string, baseUrl?: string | null): { endpoin
 
   const config = configs[provider] || configs.openai;
   if (baseUrl) {
-    const endpoint = baseUrl.endsWith('/chat/completions') || baseUrl.endsWith('/messages') 
-      ? baseUrl 
-      : `${baseUrl.replace(/\/$/, '')}/v1/messages`;
+    const isAnthropic = config.useAnthropicFormat;
+    if (baseUrl.endsWith('/chat/completions') || baseUrl.endsWith('/messages')) {
+      return { ...config, endpoint: baseUrl };
+    }
+    const base = baseUrl.replace(/\/$/, '');
+    const endpoint = isAnthropic
+      ? `${base}/v1/messages`
+      : `${base}/v1/chat/completions`;
     return { ...config, endpoint };
   }
   return config;
@@ -83,6 +104,7 @@ function getProviderByModel(model: string): string {
   if (model.startsWith('MiniMax') || model.startsWith('minimax')) return 'minimax';
   if (model.startsWith('moonshot') || model.startsWith('kimi')) return 'kimi';
   if (model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o3')) return 'openai';
+  if (model.startsWith('claude')) return 'anthropic';
   if (model.startsWith('glm')) return 'zhipu';
   if (model.startsWith('deepseek')) return 'deepseek';
   if (model.startsWith('abab')) return 'minimax';
@@ -114,6 +136,10 @@ export async function callLLM(
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages.filter(m => m.role !== 'system');
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    
+    try {
     const response = await fetch(providerConfig.endpoint, {
       method: 'POST',
       headers: {
@@ -130,6 +156,7 @@ export async function callLLM(
           content: m.content,
         })),
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -148,8 +175,15 @@ export async function callLLM(
         totalTokens: data.usage.input_tokens + data.usage.output_tokens,
       } : undefined,
     };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  
+  try {
   const response = await fetch(providerConfig.endpoint, {
     method: 'POST',
     headers: {
@@ -163,6 +197,7 @@ export async function callLLM(
       max_tokens: options?.maxTokens ?? 4096,
       stream: false,
     }),
+    signal: controller.signal,
   });
 
   if (!response.ok) {
@@ -259,6 +294,9 @@ export async function callLLM(
       totalTokens: data.usage.total_tokens,
     } : undefined,
   };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function* streamLLM(
@@ -281,19 +319,52 @@ export async function* streamLLM(
   const model = modelFromOption || config.model || 'gpt-4o';
   const effectiveApiKey = decrypt(config.apiKey);
 
-  const response = await fetch(providerConfig.endpoint, {
-    method: 'POST',
-    headers: {
+  const isAnthropic = providerConfig.useAnthropicFormat;
+
+  let fetchHeaders: Record<string, string>;
+  let fetchBody: string;
+
+  if (isAnthropic) {
+    const systemMessage = messages.find(m => m.role === 'system');
+    const chatMessages = messages.filter(m => m.role !== 'system').map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
+    fetchHeaders = {
+      'Content-Type': 'application/json',
+      'x-api-key': effectiveApiKey,
+      'anthropic-version': '2023-06-01',
+    };
+    fetchBody = JSON.stringify({
+      model,
+      max_tokens: options?.maxTokens ?? 4096,
+      stream: true,
+      ...(systemMessage ? { system: systemMessage.content } : {}),
+      messages: chatMessages,
+    });
+  } else {
+    fetchHeaders = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${effectiveApiKey}`,
-    },
-    body: JSON.stringify({
+    };
+    fetchBody = JSON.stringify({
       model,
       messages,
       temperature: options?.temperature ?? 1.7,
       max_tokens: options?.maxTokens ?? 4096,
       stream: true,
-    }),
+    });
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+  try {
+  const response = await fetch(providerConfig.endpoint, {
+    method: 'POST',
+    headers: fetchHeaders,
+    body: fetchBody,
+    signal: controller.signal,
   });
 
   if (!response.ok) {
@@ -313,6 +384,7 @@ export async function* streamLLM(
     const { done, value } = await reader.read();
     if (done) {
       yield { content: '', done: true };
+      clearTimeout(timeoutId);
       break;
     }
 
@@ -326,19 +398,38 @@ export async function* streamLLM(
         const data = trimmed.slice(6);
         if (data === '[DONE]') {
           yield { content: '', done: true };
+          clearTimeout(timeoutId);
           return;
         }
         try {
           const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content || '';
-          if (content) {
-            yield { content, done: false };
+          if (isAnthropic) {
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+              yield { content: parsed.delta.text, done: false };
+            } else if (parsed.type === 'message_stop') {
+              yield { content: '', done: true };
+              clearTimeout(timeoutId);
+              return;
+            }
+          } else {
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            if (content) {
+              yield { content, done: false };
+            }
           }
         } catch {
           // 忽略解析错误
         }
       }
     }
+  }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('LLM API 请求超时 (300s)');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

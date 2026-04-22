@@ -9,12 +9,29 @@ import { db } from '@/lib/db';
 import { materialLibrary } from '@/lib/db/schema';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
+const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '169.254.169.254'];
+
+function isUrlSafe(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    return !BLOCKED_HOSTS.some(blocked => hostname === blocked || hostname.endsWith(`.${blocked}`));
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
 
   if (!url) {
     return errorResponse('URL参数缺失', 400);
+  }
+
+  if (!isUrlSafe(url)) {
+    return errorResponse('不允许访问该URL', 400);
   }
 
   try {
@@ -32,6 +49,9 @@ export async function POST(request: NextRequest) {
     const { action, url, urls, saveToLibrary } = body;
 
     if (action === 'fetch' && url) {
+      if (!isUrlSafe(url)) {
+        return errorResponse('不允许访问该URL', 400);
+      }
       const content = await fetchDeepContent(url);
 
       if (saveToLibrary) {
@@ -55,7 +75,11 @@ export async function POST(request: NextRequest) {
       return successResponse(content);
     }
 
-    if (action === 'batch-fetch' && urls) {
+    if (action === 'batch-fetch' && urls && Array.isArray(urls) && urls.length > 0) {
+      const unsafeUrls = urls.filter((u: string) => !isUrlSafe(u));
+      if (unsafeUrls.length > 0) {
+        return errorResponse(`不允许访问以下URL: ${unsafeUrls.join(', ')}`, 400);
+      }
       const contents = await batchFetchDeepContent(urls);
 
       if (saveToLibrary) {

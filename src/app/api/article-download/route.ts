@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       case 'batch':
         return await batchDownload(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Article download error:', error);

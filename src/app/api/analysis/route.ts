@@ -20,17 +20,23 @@ export async function GET(request: NextRequest) {
   const taskId = searchParams.get('taskId');
   const action = searchParams.get('action');
 
+  try {
   const database = db();
 
   if (taskId && action === 'status') {
-    const tasks = await database.select().from(analysisTasks).where(eq(analysisTasks.id, parseInt(taskId)));
+    const parsedTaskId = parseInt(taskId);
+    if (isNaN(parsedTaskId)) {
+      return NextResponse.json({ success: false, error: 'Invalid taskId' }, { status: 400 });
+    }
+    const tasks = await database.select().from(analysisTasks).where(eq(analysisTasks.id, parsedTaskId));
     if (tasks.length === 0) {
-      return NextResponse.json({ error: '任务不存在' }, { status: 404 });
+      return NextResponse.json({ success: false, error: '任务不存在' }, { status: 404 });
     }
     const task = tasks[0];
-    const articles = await database.select().from(analysisArticles).where(eq(analysisArticles.taskId, parseInt(taskId)));
+    const articles = await database.select().from(analysisArticles).where(eq(analysisArticles.taskId, parsedTaskId));
     
     return NextResponse.json({
+      success: true,
       task,
       analyzedCount: articles.length,
       progress: task.totalArticles ? Math.round((articles.length / task.totalArticles) * 100) : 0,
@@ -38,15 +44,25 @@ export async function GET(request: NextRequest) {
   }
 
   if (taskId && action === 'report') {
-    const reports = await database.select().from(insightReports).where(eq(insightReports.taskId, parseInt(taskId)));
-    if (reports.length === 0) {
-      return NextResponse.json({ error: '报告不存在' }, { status: 404 });
+    const parsedTaskId = parseInt(taskId);
+    if (isNaN(parsedTaskId)) {
+      return NextResponse.json({ success: false, error: 'Invalid taskId' }, { status: 400 });
     }
-    return NextResponse.json(reports[0]);
+    const reports = await database.select().from(insightReports).where(eq(insightReports.taskId, parsedTaskId));
+    if (reports.length === 0) {
+      return NextResponse.json({ success: false, error: '报告不存在' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, report: reports[0] });
   }
 
   const tasks = await database.select().from(analysisTasks).orderBy(desc(analysisTasks.createdAt));
-  return NextResponse.json(tasks);
+  return NextResponse.json({ success: true, tasks });
+  } catch (error) {
+    console.error('Analysis GET API error:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -57,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'start') {
       if (!keyword || !keyword.trim()) {
-        return NextResponse.json({ error: '请输入关键词' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '请输入关键词' }, { status: 400 });
       }
 
       const [task] = await database.insert(analysisTasks).values({
@@ -88,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'update-progress') {
       if (!taskId) {
-        return NextResponse.json({ error: '缺少任务ID' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '缺少任务ID' }, { status: 400 });
       }
 
       await database.update(analysisTasks)
@@ -107,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'save-articles') {
       if (!taskId || !articles || !Array.isArray(articles)) {
-        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '参数错误' }, { status: 400 });
       }
 
       for (const article of articles) {
@@ -124,7 +140,7 @@ export async function POST(request: NextRequest) {
           engagementRate: article.engagementRate || 0,
           publishDate: article.publishDate,
           content: article.content,
-          keywords: article.keywords || [],
+          keywords: JSON.stringify(article.keywords || []),
           analyzedAt: new Date(),
         });
       }
@@ -134,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'save-report') {
       if (!taskId || !report) {
-        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '参数错误' }, { status: 400 });
       }
 
       const [savedReport] = await database.insert(insightReports).values({
@@ -156,7 +172,7 @@ export async function POST(request: NextRequest) {
     if (action === 'save-article') {
       const { title, content } = body;
       if (!taskId || !title || !content) {
-        return NextResponse.json({ error: '参数错误' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '参数错误' }, { status: 400 });
       }
 
       const [article] = await database.insert(generatedArticles).values({
@@ -171,7 +187,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, article });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     console.error('Analysis API error:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '操作失败' }, { status: 500 });

@@ -6,46 +6,61 @@ import { eq, and, desc, inArray } from 'drizzle-orm';
 const PLATFORMS = ['xiaohongshu', 'douyin', 'kuaishou', 'bilibili', 'weibo', 'tieba', 'zhihu'] as const;
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get('action');
 
-  if (action === 'list-posts') {
-    const platform = searchParams.get('platform');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    return await listPosts(platform, limit);
+    if (action === 'list-posts') {
+      const platform = searchParams.get('platform');
+      const limit = parseInt(searchParams.get('limit') || '50');
+      if (isNaN(limit) || limit < 1) {
+        return NextResponse.json({ success: false, error: 'Invalid limit parameter' }, { status: 400 });
+      }
+      return await listPosts(platform, limit);
+    }
+
+    if (action === 'get-post') {
+      const id = searchParams.get('id');
+      return await getPost(id);
+    }
+
+    if (action === 'list-comments') {
+      const postId = searchParams.get('postId');
+      const limit = parseInt(searchParams.get('limit') || '100');
+      if (isNaN(limit) || limit < 1) {
+        return NextResponse.json({ success: false, error: 'Invalid limit parameter' }, { status: 400 });
+      }
+      return await listComments(postId, limit);
+    }
+
+    if (action === 'list-creators') {
+      const platform = searchParams.get('platform');
+      return await listCreators(platform);
+    }
+
+    if (action === 'list-tasks') {
+      return await listTasks();
+    }
+
+    if (action === 'word-cloud') {
+      const postId = searchParams.get('postId');
+      return await getWordCloud(postId);
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Crawler API GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '操作失败' },
+      { status: 500 }
+    );
   }
-
-  if (action === 'get-post') {
-    const id = searchParams.get('id');
-    return await getPost(id);
-  }
-
-  if (action === 'list-comments') {
-    const postId = searchParams.get('postId');
-    const limit = parseInt(searchParams.get('limit') || '100');
-    return await listComments(postId, limit);
-  }
-
-  if (action === 'list-creators') {
-    const platform = searchParams.get('platform');
-    return await listCreators(platform);
-  }
-
-  if (action === 'list-tasks') {
-    return await listTasks();
-  }
-
-  if (action === 'word-cloud') {
-    const postId = searchParams.get('postId');
-    return await getWordCloud(postId);
-  }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action } = body;
+  try {
+    const body = await request.json();
+    const { action } = body;
 
   if (action === 'search') {
     const { platform, keyword, limit, cookie } = body;
@@ -82,7 +97,14 @@ export async function POST(request: NextRequest) {
     return await batchCrawl(platform, keywords, postIds);
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Crawler API POST error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '操作失败' },
+      { status: 500 }
+    );
+  }
 }
 
 async function listPosts(platform: string | null, limit: number) {
@@ -104,13 +126,18 @@ async function listPosts(platform: string | null, limit: number) {
 
 async function getPost(id: string | null) {
   if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
   }
 
-  const [post] = await db().select().from(platformPosts).where(eq(platformPosts.id, parseInt(id)));
+  const parsedId = parseInt(id);
+  if (isNaN(parsedId)) {
+    return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 });
+  }
+
+  const [post] = await db().select().from(platformPosts).where(eq(platformPosts.id, parsedId));
   
   if (!post) {
-    return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Post not found' }, { status: 404 });
   }
 
   return NextResponse.json({ success: true, post });
@@ -118,11 +145,16 @@ async function getPost(id: string | null) {
 
 async function listComments(postId: string | null, limit: number) {
   if (!postId) {
-    return NextResponse.json({ error: 'postId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
+  }
+
+  const parsedPostId = parseInt(postId);
+  if (isNaN(parsedPostId)) {
+    return NextResponse.json({ success: false, error: 'Invalid postId' }, { status: 400 });
   }
 
   const comments = await db().select().from(postComments)
-    .where(eq(postComments.postId, parseInt(postId)))
+    .where(eq(postComments.postId, parsedPostId))
     .orderBy(desc(postComments.likeCount))
     .limit(limit);
 
@@ -151,18 +183,23 @@ async function listTasks() {
 
 async function getWordCloud(postId: string | null) {
   if (!postId) {
-    return NextResponse.json({ error: 'postId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
+  }
+
+  const parsedPostId = parseInt(postId);
+  if (isNaN(parsedPostId)) {
+    return NextResponse.json({ success: false, error: 'Invalid postId' }, { status: 400 });
   }
 
   const [wordCloud] = await db().select().from(commentWordCloud)
-    .where(eq(commentWordCloud.postId, parseInt(postId)));
+    .where(eq(commentWordCloud.postId, parsedPostId));
 
   return NextResponse.json({ success: true, wordCloud });
 }
 
 async function searchPosts(platform: string, keyword: string, limit: number = 20, cookie?: string) {
   if (!platform || !keyword) {
-    return NextResponse.json({ error: 'platform and keyword are required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'platform and keyword are required' }, { status: 400 });
   }
 
   const [task] = await db().insert(crawlTasks).values({
@@ -244,7 +281,7 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
 
 async function crawlPost(platform: string, postId: string) {
   if (!platform || !postId) {
-    return NextResponse.json({ error: 'platform and postId are required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'platform and postId are required' }, { status: 400 });
   }
 
   const [task] = await db().insert(crawlTasks).values({
@@ -297,12 +334,12 @@ async function crawlPost(platform: string, postId: string) {
 
 async function crawlComments(postId: number, includeReplies: boolean = true) {
   if (!postId) {
-    return NextResponse.json({ error: 'postId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
   }
 
   const [post] = await db().select().from(platformPosts).where(eq(platformPosts.id, postId));
   if (!post) {
-    return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Post not found' }, { status: 404 });
   }
 
   const mockComments = generateMockComments(post.platform, postId, includeReplies);
@@ -340,7 +377,7 @@ async function crawlComments(postId: number, includeReplies: boolean = true) {
 
 async function addCreator(platform: string, creatorId: string, name: string) {
   if (!platform || !creatorId || !name) {
-    return NextResponse.json({ error: 'platform, creatorId and name are required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'platform, creatorId and name are required' }, { status: 400 });
   }
 
   const [creator] = await db().insert(creators).values({
@@ -355,12 +392,12 @@ async function addCreator(platform: string, creatorId: string, name: string) {
 
 async function crawlCreatorPosts(creatorId: number) {
   if (!creatorId) {
-    return NextResponse.json({ error: 'creatorId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'creatorId is required' }, { status: 400 });
   }
 
   const [creator] = await db().select().from(creators).where(eq(creators.id, creatorId));
   if (!creator) {
-    return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Creator not found' }, { status: 404 });
   }
 
   const mockPosts = generateMockCreatorPosts(creator.platform, creator.creatorId, creator.name);
@@ -397,14 +434,14 @@ async function crawlCreatorPosts(creatorId: number) {
 
 async function generateWordCloud(postId: number) {
   if (!postId) {
-    return NextResponse.json({ error: 'postId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
   }
 
   const comments = await db().select().from(postComments)
     .where(eq(postComments.postId, postId));
 
   if (comments.length === 0) {
-    return NextResponse.json({ error: 'No comments found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'No comments found' }, { status: 404 });
   }
 
   const keywordCounts: Record<string, number> = {};

@@ -132,15 +132,17 @@ export default function PromptManager() {
   const [editingTemplate, setEditingTemplate] = useState<string>('');
 
   useEffect(() => {
-    loadPrompts();
+    const controller = new AbortController();
+    loadPrompts(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadPrompts = async () => {
+  const loadPrompts = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/create-workshop?action=get-prompts');
+      const res = await fetch('/api/create-workshop?action=get-prompts', { signal });
       const data = await res.json();
-      setPrompts(data.prompts || []);
+      setPrompts(data.success ? (data.prompts || []) : (data.prompts || []));
       setError(null);
     } catch (err) {
       setError('加载 Prompt 配置失败');

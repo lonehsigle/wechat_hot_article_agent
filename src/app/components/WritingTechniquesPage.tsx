@@ -46,7 +46,7 @@ function WritingTechniquesPage() {
       if (selectedStage !== 'all') params.append('stage', selectedStage);
       const res = await fetch(`/api/writing-techniques?${params.toString()}`);
       const data = await res.json();
-      setTechniques(Array.isArray(data) ? data : []);
+      setTechniques(data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load techniques:', error);
       setTechniques([]);
@@ -59,7 +59,7 @@ function WritingTechniquesPage() {
     try {
       const res = await fetch('/api/writing-techniques?categories=true');
       const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
+      setCategories(data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load categories:', error);
       setCategories([]);

@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (!articles || articles.length === 0) {
-      return NextResponse.json({ error: '请提供文章数据' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '请提供文章数据' }, { status: 400 });
     }
 
     const wordCount: Record<string, number> = {};
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[Segment] Error:', error);
     return NextResponse.json({ 
+      success: false,
       error: '分词处理失败', 
       details: String(error) 
     }, { status: 500 });

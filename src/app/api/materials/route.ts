@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(materialLibrary.type, type));
     }
     if (topicId) {
-      conditions.push(eq(materialLibrary.topicId, parseInt(topicId)));
+      const parsedTopicId = parseInt(topicId);
+      if (!isNaN(parsedTopicId)) {
+        conditions.push(eq(materialLibrary.topicId, parsedTopicId));
+      }
     }
     if (unused === 'true') {
       conditions.push(eq(materialLibrary.isUsed, false));
@@ -146,8 +149,13 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('Missing id', 400);
     }
 
+    const parsedId = parseInt(id);
+    if (isNaN(parsedId)) {
+      return errorResponse('Invalid id', 400);
+    }
+
     const database = db();
-    await database.delete(materialLibrary).where(eq(materialLibrary.id, parseInt(id)));
+    await database.delete(materialLibrary).where(eq(materialLibrary.id, parsedId));
 
     return successResponse(null);
   } catch (error) {

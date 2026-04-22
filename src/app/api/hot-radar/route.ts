@@ -3,9 +3,8 @@ import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, materialLibrary, collectedArticles, articleRewrites } from '@/lib/db/schema';
 import { eq, desc, and, gt, sql, inArray } from 'drizzle-orm';
 import { unifiedSearch, type SearchConfig, type SearchResponse } from '@/lib/search/service';
+import { callLLM as sharedCallLLM, type LLMMessage } from '@/lib/llm/service';
 
- const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
-const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const TIANGONG_API_KEY = process.env.TIANGONG_API_KEY;
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
@@ -33,26 +32,9 @@ interface HotTopicRecommendation {
 }
 
 async function callLLM(prompt: string): Promise<string> {
-  const response = await fetch(`${DEEPSEEK_BASE_URL}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 3000,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`LLM API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
+  const messages: LLMMessage[] = [{ role: 'user', content: prompt }];
+  const result = await sharedCallLLM(messages, { temperature: 0.7, maxTokens: 3000 });
+  return result.content;
 }
 
 async function analyzeTrend(topicId: number): Promise<TrendAnalysis | null> {
@@ -330,30 +312,39 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
 
+  try {
   if (action === 'trend-analysis') {
     const topicId = searchParams.get('topicId');
     if (!topicId) {
-      return NextResponse.json({ error: 'topicId is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'topicId is required' }, { status: 400 });
     }
 
-    const analysis = await analyzeTrend(parseInt(topicId));
-    return NextResponse.json(analysis);
+    const parsedTopicId = parseInt(topicId);
+    if (isNaN(parsedTopicId)) {
+      return NextResponse.json({ success: false, error: 'Invalid topicId' }, { status: 400 });
+    }
+    const analysis = await analyzeTrend(parsedTopicId);
+    return NextResponse.json({ success: true, analysis });
   }
 
   if (action === 'recommendations') {
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = parseInt(searchParams.get('limit') || '10') || 10;
     const recommendations = await getRecommendations(undefined, limit);
-    return NextResponse.json(recommendations);
+    return NextResponse.json({ success: true, recommendations });
   }
 
   if (action === 'keywords') {
     const topicId = searchParams.get('topicId');
     if (!topicId) {
-      return NextResponse.json({ error: 'topicId is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'topicId is required' }, { status: 400 });
     }
 
-    const keywords = await extractKeywords(parseInt(topicId));
-    return NextResponse.json({ keywords });
+    const parsedTopicId = parseInt(topicId);
+    if (isNaN(parsedTopicId)) {
+      return NextResponse.json({ success: false, error: 'Invalid topicId' }, { status: 400 });
+    }
+    const keywords = await extractKeywords(parsedTopicId);
+    return NextResponse.json({ success: true, keywords });
   }
 
   if (action === 'dashboard') {
@@ -399,7 +390,7 @@ export async function GET(request: NextRequest) {
     const maxResults = parseInt(searchParams.get('maxResults') || '10');
     
     if (!keyword) {
-      return NextResponse.json({ error: 'keyword is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'keyword is required' }, { status: 400 });
     }
 
     try {
@@ -440,17 +431,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('[热点雷达] GET API 错误:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action, data } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { action, data } = body as { action: string; data?: Record<string, unknown> };
 
+  try {
   if (action === 'link-workshop') {
-    const { topicId, articleId } = data;
+    if (!data) {
+      return NextResponse.json({ success: false, error: 'data is required' }, { status: 400 });
+    }
+    const { topicId, articleId } = data as { topicId: number; articleId: number };
     const result = await linkToWorkshop(topicId, articleId);
-    return NextResponse.json(result);
+    return NextResponse.json({ success: true, result });
   }
 
   if (action === 'batch-trend-analysis') {
@@ -472,11 +478,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'smart-collect') {
-    const { topicId, collectMaterials, collectArticles } = data;
+    if (!data) {
+      return NextResponse.json({ success: false, error: 'data is required' }, { status: 400 });
+    }
+    const { topicId, collectMaterials, collectArticles } = data as {
+      topicId: number; collectMaterials?: boolean; collectArticles?: boolean;
+    };
 
     const topic = await db().select().from(hotTopics).where(eq(hotTopics.id, topicId)).limit(1);
     if (!topic[0]) {
-      return NextResponse.json({ error: '话题不存在' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '话题不存在' }, { status: 400 });
     }
 
     const results: {
@@ -511,5 +522,11 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('[热点雷达] POST API 错误:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }

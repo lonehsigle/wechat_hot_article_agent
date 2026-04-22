@@ -324,6 +324,6 @@ export async function POST() {
     });
   } catch (error) {
     console.error('Failed to init SOP data:', error);
-    return NextResponse.json({ error: 'Failed to init SOP data' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to init SOP data' }, { status: 500 });
   }
 }

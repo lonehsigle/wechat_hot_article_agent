@@ -651,3 +651,27 @@ export const optimizationSuggestions = pgTable('optimization_suggestions', {
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 });
+
+export const ipPlans = pgTable('ip_plans', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  industry: text('industry'),
+  industryAnalysis: text('industry_analysis'),
+  accountName: text('account_name'),
+  accountAvatar: text('account_avatar'),
+  accountBio: text('account_bio'),
+  accountStyle: text('account_style'),
+  personaName: text('persona_name'),
+  personaTraits: text('persona_traits'),
+  personaStory: text('persona_story'),
+  personaVoice: text('persona_voice'),
+  executionPlan: text('execution_plan'),
+  contentCalendar: text('content_calendar'),
+  milestones: text('milestones'),
+  monetizationPath: text('monetization_path'),
+  revenueModel: text('revenue_model'),
+  pricingStrategy: text('pricing_strategy'),
+  status: text('status').default('active'),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});

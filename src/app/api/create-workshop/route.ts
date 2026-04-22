@@ -18,8 +18,10 @@ async function callLLMWithPrompt(prompt: string, temperature: number = 0.7, maxT
 
 async function getWritingStyle(styleId: string | undefined) {
   if (!styleId) return null;
+  const parsedId = parseInt(styleId);
+  if (isNaN(parsedId)) return null;
   try {
-    const result = await db().select().from(writingStyles).where(eq(writingStyles.id, parseInt(styleId)));
+    const result = await db().select().from(writingStyles).where(eq(writingStyles.id, parsedId));
     return result[0] || null;
   } catch {
     return null;
@@ -28,8 +30,10 @@ async function getWritingStyle(styleId: string | undefined) {
 
 async function getLayoutStyle(layoutId: string | undefined) {
   if (!layoutId) return null;
+  const parsedId = parseInt(layoutId);
+  if (isNaN(parsedId)) return null;
   try {
-    const result = await db().select().from(layoutStyles).where(eq(layoutStyles.id, parseInt(layoutId)));
+    const result = await db().select().from(layoutStyles).where(eq(layoutStyles.id, parsedId));
     return result[0] || null;
   } catch {
     return null;
@@ -40,12 +44,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const action = searchParams.get('action');
   
+  try {
   if (action === 'get-prompts') {
     const prompts = await getAllPrompts();
-    return NextResponse.json({ prompts });
+    return NextResponse.json({ success: true, prompts });
   }
   
-  return NextResponse.json({ error: '未知操作' }, { status: 400 });
+  return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
+  } catch (error) {
+    console.error('Create workshop GET error:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -59,30 +70,45 @@ export async function POST(request: NextRequest) {
       if (success) {
         return NextResponse.json({ success: true, message: 'Prompt已更新' });
       }
-      return NextResponse.json({ error: '未找到该Prompt' }, { status: 404 });
+      return NextResponse.json({ success: false, error: '未找到该Prompt' }, { status: 404 });
     }
 
     if (action === 'web-search') {
+      if (!body.keyword) {
+        return NextResponse.json({ success: false, error: 'keyword参数不能为空' }, { status: 400 });
+      }
       const searchResult = await callWebSearch(body.keyword);
       return NextResponse.json(searchResult);
     }
 
     if (action === 'generate-article') {
+      if (!body.keyword) {
+        return NextResponse.json({ success: false, error: 'keyword参数不能为空' }, { status: 400 });
+      }
       const article = await generateArticle(body);
       return NextResponse.json(article);
     }
 
     if (action === 'check-ai') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const result = await checkAIContent(body.content);
       return NextResponse.json(result);
     }
 
     if (action === 'humanize-content') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const result = await humanizeContent(body.content);
       return NextResponse.json(result);
     }
 
     if (action === 'polish-content') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const result = await polishContent(body.content, {
         ...body,
         previousScore: body.previousScore,
@@ -93,60 +119,93 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'generate-title') {
+      if (!body.keyword) {
+        return NextResponse.json({ success: false, error: 'keyword参数不能为空' }, { status: 400 });
+      }
       const styleData = await getWritingStyle(body.style);
       const titles = await generateTitles({ ...body, styleData });
       return NextResponse.json(titles);
     }
 
     if (action === 'evaluate-title') {
+      if (!body.titles || !Array.isArray(body.titles)) {
+        return NextResponse.json({ success: false, error: 'titles参数不能为空且必须是数组' }, { status: 400 });
+      }
       const evaluations = await evaluateTitles(body.titles, body.originalTitle);
       return NextResponse.json({ evaluations });
     }
 
     if (action === 'generate-opening') {
+      if (!body.title || !body.keyword) {
+        return NextResponse.json({ success: false, error: 'title和keyword参数不能为空' }, { status: 400 });
+      }
       const styleData = await getWritingStyle(body.style);
       const opening = await generateOpening({ ...body, styleData });
       return NextResponse.json(opening);
     }
 
     if (action === 'generate-ending') {
+      if (!body.title || !body.body) {
+        return NextResponse.json({ success: false, error: 'title和body参数不能为空' }, { status: 400 });
+      }
       const ending = await generateEnding(body);
       return NextResponse.json(ending);
     }
 
     if (action === 'analyze-content') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const analysis = await analyzeContentType(body.content, body.title);
       return NextResponse.json(analysis);
     }
 
     if (action === 'rewrite-article') {
+      if (!body.keyword) {
+        return NextResponse.json({ success: false, error: 'keyword参数不能为空' }, { status: 400 });
+      }
       const article = await rewriteArticle(body);
       return NextResponse.json(article);
     }
 
     if (action === 'decompose-article') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const result = await decomposeArticle(body.content, body.title);
       return NextResponse.json(result);
     }
 
     if (action === 'generate-body') {
+      if (!body.title) {
+        return NextResponse.json({ success: false, error: 'title参数不能为空' }, { status: 400 });
+      }
       const styleData = await getWritingStyle(body.style);
       const result = await generateBody({ ...body, styleData });
       return NextResponse.json(result);
     }
 
     if (action === 'full-creation-workflow') {
+      if (!body.keyword || !body.title) {
+        return NextResponse.json({ success: false, error: 'keyword和title参数不能为空' }, { status: 400 });
+      }
       const styleData = await getWritingStyle(body.style);
       const result = await fullCreationWorkflow({ ...body, styleData });
       return NextResponse.json(result);
     }
 
     if (action === 'pre-publish-evaluation') {
+      if (!body.content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const result = await prePublishEvaluation(body.content, body.title);
       return NextResponse.json(result);
     }
 
     if (action === 'full-sop-workflow') {
+      if (!body.keyword) {
+        return NextResponse.json({ success: false, error: 'keyword参数不能为空' }, { status: 400 });
+      }
       const styleData = await getWritingStyle(body.style);
       const layoutData = await getLayoutStyle(body.layout);
       const result = await fullSOPWorkflow({ ...body, styleData, layoutData });
@@ -214,6 +273,12 @@ export async function POST(request: NextRequest) {
 
     if (action === 'delete-rewrite') {
       const { id } = body;
+      if (!id) {
+        return NextResponse.json({ 
+          success: false, 
+          error: '缺少文章ID' 
+        }, { status: 400 });
+      }
       
       try {
         await db()
@@ -232,10 +297,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     console.error('Create workshop error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
 
@@ -248,10 +313,12 @@ async function callWebSearch(keyword: string) {
       success: true,
       searchResults: result,
     };
-  } catch {
+  } catch (error) {
+    console.error('Web search failed:', error);
     return {
-      success: true,
-      searchResults: `关于"${keyword}"的热点话题搜索结果`,
+      success: false,
+      error: '搜索失败，请稍后重试',
+      searchResults: '',
     };
   }
 }
@@ -267,20 +334,21 @@ async function decomposeArticle(content: string, title?: string) {
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
-  } catch {
-    // ignore parse error
+  } catch (error) {
+    console.error('Decompose article failed:', error);
   }
   
   return {
-    titleStrategy: '分析中...',
-    openingStyle: '分析中...',
-    framework: '分析中...',
-    bodyProgression: '分析中...',
-    endingDesign: '分析中...',
-    styleAndPersona: '分析中...',
+    titleStrategy: '',
+    openingStyle: '',
+    framework: '',
+    bodyProgression: '',
+    endingDesign: '',
+    styleAndPersona: '',
     emotionHooks: [],
-    articleType: '未知类型',
-    template: '模板生成中...',
+    articleType: '',
+    template: '',
+    _decomposeFailed: true,
   };
 }
 
@@ -458,7 +526,7 @@ ${params.styleData.emotionalHooks?.length ? `情绪钩子：${params.styleData.e
       .replace('{framework}', framework)
       + styleContext;
     
-    console.log('[创作流程] 步骤1: 生成开头...');
+    console.error('[创作流程] 步骤1: 生成开头...');
     const openingResult = await callLLMWithPrompt(openingPrompt, 0.8);
 
     if (!openingResult) {
@@ -490,7 +558,7 @@ ${params.styleData.template ? `参考模板：${params.styleData.template.substr
       .replace('{bodyTemplate}', bodyTemplate)
       + bodyStyleContext;
 
-    console.log('[创作流程] 步骤2: 根据开头生成正文...');
+    console.error('[创作流程] 步骤2: 根据开头生成正文...');
     const bodyResult = await callLLMWithPrompt(bodyPrompt, 0.7);
 
     if (!bodyResult) {
@@ -977,8 +1045,8 @@ async function fullSOPWorkflow(params: {
   originalContent?: string;
   originalTitle?: string;
   readCount?: number;
-  styleData?: any;
-  layoutData?: any;
+  styleData?: Record<string, unknown> | null;
+  layoutData?: Record<string, unknown> | null;
 }) {
   const { detectAIPatterns, checkPublishReadiness } = await import('@/lib/ai-detection/service');
   
@@ -986,10 +1054,10 @@ async function fullSOPWorkflow(params: {
     step: number;
     stepName: string;
     status: 'pending' | 'in_progress' | 'completed' | 'failed';
-    data?: any;
+    data?: Record<string, unknown>;
     error?: string;
   }[] = [
-    { step: 1, stepName: '配置解析', status: 'completed', data: { style: params.styleData?.name, layout: params.layoutData?.name } },
+    { step: 1, stepName: '配置解析', status: 'completed', data: { style: (params.styleData as { name?: string })?.name, layout: (params.layoutData as { name?: string })?.name } },
     { step: 2, stepName: '选题撰写', status: 'pending' },
     { step: 3, stepName: 'AI去味', status: 'pending' },
     { step: 4, stepName: '生成配图', status: 'pending' },

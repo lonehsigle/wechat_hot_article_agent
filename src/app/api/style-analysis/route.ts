@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { layoutStyles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { callLLM } from '@/lib/llm/service';
+import { successResponse, errorResponse } from '@/lib/utils/api-response';
 
 interface StyleAnalysis {
   titleStyle: {
@@ -205,7 +206,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'analyze') {
       if (!title || !content) {
-        return NextResponse.json({ error: '缺少标题或内容' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '缺少标题或内容' }, { status: 400 });
       }
 
       const analysis = await analyzeArticleStyleWithLLM(title, content);
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
         
         const database = db();
         const existingStyles = await database.select().from(layoutStyles);
-        const existingNames = existingStyles.map((s: any) => s.name);
+        const existingNames = existingStyles.map((s: { name: string }) => s.name);
         
         let finalName = name;
         let counter = 1;
@@ -251,13 +252,13 @@ export async function POST(request: NextRequest) {
     if (action === 'list') {
       const database = db();
       const styles = await database.select().from(layoutStyles);
-      return NextResponse.json(styles);
+      return NextResponse.json({ success: true, styles });
     }
 
     if (action === 'delete') {
       const { styleId } = body;
       if (!styleId) {
-        return NextResponse.json({ error: '缺少风格ID' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '缺少风格ID' }, { status: 400 });
       }
       
       const database = db();
@@ -265,10 +266,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     console.error('Style analysis error:', error);
-    return NextResponse.json({ error: '风格分析失败' }, { status: 500 });
+    return NextResponse.json({ success: false, error: '风格分析失败' }, { status: 500 });
   }
 }
 
@@ -276,9 +277,9 @@ export async function GET(request: NextRequest) {
   try {
     const database = db();
     const styles = await database.select().from(layoutStyles);
-    return NextResponse.json(styles);
+    return successResponse(styles);
   } catch (error) {
     console.error('Failed to load styles:', error);
-    return NextResponse.json({ error: '加载风格列表失败' }, { status: 500 });
+    return errorResponse('加载风格列表失败');
   }
 }

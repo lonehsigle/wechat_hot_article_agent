@@ -1,90 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { wechatDrafts } from '@/lib/db/schema';
-import { eq, desc, inArray, and, isNotNull, isNull, sql, SQL } from 'drizzle-orm';
+import { eq, desc, inArray, and, sql, SQL } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
 
-  if (action === 'list') {
-    const status = searchParams.get('status');
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '20');
-    
-    return await listDrafts(status, page, pageSize);
-  }
+  try {
+    if (action === 'list') {
+      const status = searchParams.get('status');
+      const page = parseInt(searchParams.get('page') || '1');
+      const pageSize = parseInt(searchParams.get('pageSize') || '20');
+      return await listDrafts(status, page, pageSize);
+    }
 
-  if (action === 'get') {
-    const id = searchParams.get('id');
-    return await getDraft(id);
-  }
+    if (action === 'get') {
+      const id = searchParams.get('id');
+      return await getDraft(id);
+    }
 
-  if (action === 'stats') {
-    return await getDraftStats();
-  }
+    if (action === 'stats') {
+      return await getDraftStats();
+    }
 
-  if (action === 'search') {
-    const keyword = searchParams.get('keyword');
-    return await searchDrafts(keyword);
-  }
+    if (action === 'search') {
+      const keyword = searchParams.get('keyword');
+      return await searchDrafts(keyword);
+    }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Wechat drafts GET error:', error);
+    return NextResponse.json({ success: false, error: '操作失败' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action } = body;
+  try {
+    const body = await request.json();
+    const { action } = body;
 
-  if (action === 'sync') {
-    return await syncDrafts();
-  }
+    if (action === 'sync') {
+      return await syncDrafts();
+    }
 
-  if (action === 'delete') {
-    const { ids } = body;
-    return await deleteDrafts(ids);
-  }
-
-  if (action === 'batch-delete') {
-    const { ids, status, olderThan } = body;
-    if (ids && Array.isArray(ids) && ids.length > 0) {
+    if (action === 'delete') {
+      const { ids } = body;
       return await deleteDrafts(ids);
     }
-    return await batchDeleteDrafts(status, olderThan);
-  }
 
-  if (action === 'update') {
-    const { id, note, status } = body;
-    return await updateDraft(id, note, status);
-  }
+    if (action === 'batch-delete') {
+      const { ids, status, olderThan } = body;
+      if (ids && Array.isArray(ids) && ids.length > 0) {
+        return await deleteDrafts(ids);
+      }
+      return await batchDeleteDrafts(status, olderThan);
+    }
 
-  if (action === 'clear-all') {
-    return await clearAllDrafts();
-  }
+    if (action === 'update') {
+      const { id, note, status } = body;
+      return await updateDraft(id, note, status);
+    }
 
-  if (action === 'clear-published') {
-    return await clearPublishedDrafts();
-  }
+    if (action === 'clear-all') {
+      return await clearAllDrafts();
+    }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (action === 'clear-published') {
+      return await clearPublishedDrafts();
+    }
+
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Wechat drafts POST error:', error);
+    return NextResponse.json({ success: false, error: '操作失败' }, { status: 500 });
+  }
 }
 
 async function listDrafts(status: string | null, page: number, pageSize: number) {
-  const whereCondition = status && status !== 'all' ? eq(wechatDrafts.status, status) : undefined;
-  
-  const drafts = await db()
+  const hasStatusFilter = status && status !== 'all';
+
+  let draftsQuery = db()
     .select()
     .from(wechatDrafts)
-    .where(whereCondition)
+    .$dynamic();
+
+  if (hasStatusFilter) {
+    draftsQuery = draftsQuery.where(eq(wechatDrafts.status, status!));
+  }
+
+  const drafts = await draftsQuery
     .orderBy(desc(wechatDrafts.updateTime))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  const countQuery = status && status !== 'all'
-    ? db().select({ count: sql<number>`count(*)` }).from(wechatDrafts).where(eq(wechatDrafts.status, status))
-    : db().select({ count: sql<number>`count(*)` }).from(wechatDrafts);
+  const countResult = hasStatusFilter
+    ? await db().select({ count: sql<number>`count(*)` }).from(wechatDrafts).where(eq(wechatDrafts.status, status!))
+    : await db().select({ count: sql<number>`count(*)` }).from(wechatDrafts);
 
-  const [{ count }] = await countQuery;
+  const count = Number(countResult[0].count);
 
   return NextResponse.json({
     success: true,
@@ -92,19 +107,24 @@ async function listDrafts(status: string | null, page: number, pageSize: number)
     total: count,
     page,
     pageSize,
-    totalPages: Math.ceil(Number(count) / pageSize),
+    totalPages: Math.ceil(count / pageSize),
   });
 }
 
 async function getDraft(id: string | null) {
   if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
   }
 
-  const [draft] = await db().select().from(wechatDrafts).where(eq(wechatDrafts.id, parseInt(id)));
+  const parsedId = parseInt(id, 10);
+  if (isNaN(parsedId)) {
+    return NextResponse.json({ success: false, error: 'id must be a number' }, { status: 400 });
+  }
+
+  const [draft] = await db().select().from(wechatDrafts).where(eq(wechatDrafts.id, parsedId));
   
   if (!draft) {
-    return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Draft not found' }, { status: 404 });
   }
 
   return NextResponse.json({ success: true, draft });
@@ -136,10 +156,11 @@ async function getDraftStats() {
 
 async function searchDrafts(keyword: string | null) {
   if (!keyword) {
-    return NextResponse.json({ error: 'keyword is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'keyword is required' }, { status: 400 });
   }
 
-  const searchTerm = `%${keyword}%`;
+  const sanitizedKeyword = keyword.replace(/[%_\\]/g, '\\$&');
+  const searchTerm = `%${sanitizedKeyword}%`;
   const drafts = await db().select()
     .from(wechatDrafts)
     .where(sql`${wechatDrafts.title} LIKE ${searchTerm} OR ${wechatDrafts.digest} LIKE ${searchTerm}`)
@@ -158,7 +179,7 @@ async function syncDrafts() {
 
 async function deleteDrafts(ids: number[]) {
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    return NextResponse.json({ error: 'ids is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'ids is required' }, { status: 400 });
   }
 
   await db().delete(wechatDrafts).where(inArray(wechatDrafts.id, ids));
@@ -208,12 +229,18 @@ async function batchDeleteDrafts(status: string | null, olderThan: number | null
 
 async function updateDraft(id: number, note: string | null, status: string | null) {
   if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
   }
 
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
-  if (note !== null) updateData.note = note;
-  if (status !== null) updateData.status = status;
+  const validStatuses = ['draft', 'published', 'pending'];
+  const updateData: Partial<typeof wechatDrafts.$inferInsert> = { updatedAt: new Date() };
+  if (note !== null && note !== undefined) updateData.note = note;
+  if (status !== null && status !== undefined) {
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+    }
+    updateData.status = status;
+  }
 
   const [draft] = await db().update(wechatDrafts)
     .set(updateData)

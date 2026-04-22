@@ -33,16 +33,19 @@ function PublishedArticlesPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadArticles();
+    const controller = new AbortController();
+    loadArticles(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadArticles = async () => {
+  const loadArticles = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/published-articles');
+      const res = await fetch('/api/published-articles', { signal });
       const data = await res.json();
-      setArticles(data || []);
+      setArticles(data.success ? (data.data || []) : (data || []));
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       console.error('Failed to load articles:', error);
     } finally {
       setLoading(false);

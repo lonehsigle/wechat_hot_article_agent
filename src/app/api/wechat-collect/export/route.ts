@@ -9,12 +9,17 @@ export async function GET(request: NextRequest) {
   const format = searchParams.get('format') || 'markdown';
 
   if (!articleId) {
-    return NextResponse.json({ error: 'articleId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'articleId is required' }, { status: 400 });
   }
 
-  const [article] = await db().select().from(collectedArticles).where(eq(collectedArticles.id, parseInt(articleId)));
+  const parsedArticleId = parseInt(articleId);
+  if (isNaN(parsedArticleId)) {
+    return NextResponse.json({ success: false, error: 'Invalid articleId' }, { status: 400 });
+  }
+
+  const [article] = await db().select().from(collectedArticles).where(eq(collectedArticles.id, parsedArticleId));
   if (!article) {
-    return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });
   }
 
   let [subscription] = await db().select().from(wechatSubscriptions).where(eq(wechatSubscriptions.id, article.subscriptionId!));
@@ -42,7 +47,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid format' }, { status: 400 });
 }
 
 function generateMarkdown(article: typeof collectedArticles.$inferSelect, subscription: { name: string; alias: string | null }) {

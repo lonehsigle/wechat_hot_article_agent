@@ -134,7 +134,7 @@ export async function getDefaultWechatAccount() {
   return result[0] || null;
 }
 
-export async function createWechatAccount(data: { name: string; appId?: string; appSecret?: string; authorName?: string; isDefault?: boolean }) {
+export async function createWechatAccount(data: { name: string; appId?: string; appSecret?: string; authorName?: string; isDefault?: boolean; targetAudience?: string; readerPersona?: string }) {
   const database = db();
   const now = new Date();
   const result = await database.insert(wechatAccounts).values({
@@ -143,13 +143,15 @@ export async function createWechatAccount(data: { name: string; appId?: string; 
     appSecret: data.appSecret ?? '',
     authorName: data.authorName ?? '',
     isDefault: data.isDefault ?? false,
+    targetAudience: data.targetAudience ?? '',
+    readerPersona: data.readerPersona ?? '',
     createdAt: now,
     updatedAt: now,
   }).returning();
   return result[0];
 }
 
-export async function updateWechatAccount(id: number, data: Partial<{ name: string; appId: string; appSecret: string; authorName: string; isDefault: boolean }>) {
+export async function updateWechatAccount(id: number, data: Partial<{ name: string; appId: string; appSecret: string; authorName: string; isDefault: boolean; targetAudience: string; readerPersona: string }>) {
   const database = db();
   const result = await database.update(wechatAccounts).set({
     ...data,
@@ -201,24 +203,31 @@ export async function getLLMConfig(): Promise<{
   return null;
 }
 
-export async function saveLLMConfig(data: { provider: string; apiKey: string; model: string; baseUrl?: string | null }) {
+export async function saveLLMConfig(data: { provider: string; apiKey?: string; model: string; baseUrl?: string | null }) {
   const database = db();
   const existing = await getLLMConfig();
   const now = new Date();
-  const encryptedApiKey = encrypt(data.apiKey);
+
+  const updateData: Record<string, any> = {
+    provider: data.provider,
+    model: data.model,
+    baseUrl: data.baseUrl ?? null,
+    updatedAt: now,
+  };
+
+  if (data.apiKey) {
+    updateData.apiKey = encrypt(data.apiKey);
+  }
 
   if (existing) {
-    await database.update(llmConfigs).set({
-      provider: data.provider,
-      apiKey: encryptedApiKey,
-      model: data.model,
-      baseUrl: data.baseUrl ?? null,
-      updatedAt: now,
-    });
+    await database.update(llmConfigs).set(updateData);
   } else {
+    if (!data.apiKey) {
+      throw new Error('首次配置必须提供 API Key');
+    }
     await database.insert(llmConfigs).values({
       provider: data.provider,
-      apiKey: encryptedApiKey,
+      apiKey: encrypt(data.apiKey),
       model: data.model,
       baseUrl: data.baseUrl ?? null,
       createdAt: now,

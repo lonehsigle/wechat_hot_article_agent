@@ -245,16 +245,19 @@ export default function PendingPublishPage({ onPreview }: PendingPublishPageProp
   const [publishingId, setPublishingId] = useState<number | null>(null);
 
   useEffect(() => {
-    loadArticles();
+    const controller = new AbortController();
+    loadArticles(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadArticles = async () => {
+  const loadArticles = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const res = await fetch('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'list-rewrites' }),
+        signal,
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.articles)) {

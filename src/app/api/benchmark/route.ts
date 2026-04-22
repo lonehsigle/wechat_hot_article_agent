@@ -15,10 +15,14 @@ export async function GET(request: NextRequest) {
     const database = db();
 
     if (accountId && withTitles === 'true') {
+      const parsedAccountId = parseInt(accountId);
+      if (isNaN(parsedAccountId)) {
+        return errorResponse('Invalid accountId', 400);
+      }
       const titles = await database
         .select()
         .from(viralTitles)
-        .where(eq(viralTitles.benchmarkAccountId, parseInt(accountId)))
+        .where(eq(viralTitles.benchmarkAccountId, parsedAccountId))
         .orderBy(desc(viralTitles.publishDate));
       return successResponse(titles);
     }
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
           shareCount: 0,
           titleModel: null,
           painPointLevel: null,
-          keywords: [],
+          keywords: '',
           analysis: null,
           isCollected: false,
           createdAt: new Date(),
@@ -137,10 +141,18 @@ export async function PUT(request: NextRequest) {
     const database = db();
 
     if (action === 'update-account') {
+      const { platform, accountId, accountName, description, avatar, followerCount, tags, isActive } = data || {};
       const [account] = await database
         .update(benchmarkAccounts)
         .set({
-          ...data,
+          ...(platform !== undefined && { platform }),
+          ...(accountId !== undefined && { accountId }),
+          ...(accountName !== undefined && { accountName }),
+          ...(description !== undefined && { description }),
+          ...(avatar !== undefined && { avatar }),
+          ...(followerCount !== undefined && { followerCount }),
+          ...(tags !== undefined && { tags }),
+          ...(isActive !== undefined && { isActive }),
           updatedAt: new Date(),
         })
         .where(eq(benchmarkAccounts.id, id))
@@ -150,16 +162,22 @@ export async function PUT(request: NextRequest) {
     }
 
     if (action === 'update-title') {
-      const [title] = await database
+      const { title, engagementScore, viralScore, analysis, keywords, category } = data || {};
+      const [titleRecord] = await database
         .update(viralTitles)
         .set({
-          ...data,
+          ...(title !== undefined && { title }),
+          ...(engagementScore !== undefined && { engagementScore }),
+          ...(viralScore !== undefined && { viralScore }),
+          ...(analysis !== undefined && { analysis }),
+          ...(keywords !== undefined && { keywords }),
+          ...(category !== undefined && { category }),
           updatedAt: new Date(),
         })
         .where(eq(viralTitles.id, id))
         .returning();
 
-      return successResponse(title);
+      return successResponse(titleRecord);
     }
 
     return errorResponse('Unknown action', 400);
@@ -179,13 +197,18 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('Missing parameters', 400);
     }
 
+    const parsedId = parseInt(id);
+    if (isNaN(parsedId)) {
+      return errorResponse('Invalid id', 400);
+    }
+
     const database = db();
 
     if (type === 'account') {
-      await database.delete(benchmarkAccounts).where(eq(benchmarkAccounts.id, parseInt(id)));
-      await database.delete(viralTitles).where(eq(viralTitles.benchmarkAccountId, parseInt(id)));
+      await database.delete(benchmarkAccounts).where(eq(benchmarkAccounts.id, parsedId));
+      await database.delete(viralTitles).where(eq(viralTitles.benchmarkAccountId, parsedId));
     } else if (type === 'title') {
-      await database.delete(viralTitles).where(eq(viralTitles.id, parseInt(id)));
+      await database.delete(viralTitles).where(eq(viralTitles.id, parsedId));
     }
 
     return successResponse(null);

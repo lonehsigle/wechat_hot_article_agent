@@ -21,39 +21,44 @@ export async function GET(request: NextRequest) {
       case 'source-contents':
         return await handleGetSourceContents(searchParams);
       default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
     }
   } catch (error) {
     console.error('[闭环优化] API 错误:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { action } = body;
 
   try {
     switch (action) {
       case 'add':
-        return await handleAddPublishedArticle(body);
+        return await handleAddPublishedArticle(body as any);
       case 'update-stats':
-        return await handleUpdateStats(body);
+        return await handleUpdateStats(body as any);
       case 'analyze':
-        return await handleAnalyzeGap(body);
+        return await handleAnalyzeGap(body as any);
       case 'review-suggestion':
-        return await handleReviewSuggestion(body);
+        return await handleReviewSuggestion(body as any);
       case 'collect-published':
-        return await handleCollectPublishedArticles(body);
+        return await handleCollectPublishedArticles(body as any);
       default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
     }
   } catch (error) {
     console.error('[闭环优化] API 错误:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
 }
@@ -198,16 +203,16 @@ async function handleUpdateStats(data: {
 }) {
   const now = new Date();
 
+  const updateData: Partial<typeof publishedArticles.$inferInsert> = { updatedAt: now };
+  if (data.readCount !== undefined) updateData.readCount = data.readCount;
+  if (data.likeCount !== undefined) updateData.likeCount = data.likeCount;
+  if (data.lookCount !== undefined) updateData.lookCount = data.lookCount;
+  if (data.shareCount !== undefined) updateData.shareCount = data.shareCount;
+  if (data.commentCount !== undefined) updateData.commentCount = data.commentCount;
+
   await db()
     .update(publishedArticles)
-    .set({
-      readCount: data.readCount || 0,
-      likeCount: data.likeCount || 0,
-      lookCount: data.lookCount || 0,
-      shareCount: data.shareCount || 0,
-      commentCount: data.commentCount || 0,
-      updatedAt: now,
-    })
+    .set(updateData)
     .where(eq(publishedArticles.id, data.articleId));
 
   return NextResponse.json({ success: true });
@@ -221,13 +226,13 @@ async function handleAnalyzeGap(data: { articleId: number }) {
     .limit(1);
 
   if (!article.length) {
-    return NextResponse.json({ error: '文章不存在' }, { status: 404 });
+    return NextResponse.json({ success: false, error: '文章不存在' }, { status: 404 });
   }
 
   const articleData = article[0];
 
   if (!articleData.sourceContentId) {
-    return NextResponse.json({ error: '该文章未关联原文' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '该文章未关联原文' }, { status: 400 });
   }
 
   const sourceContent = await db()
@@ -237,7 +242,7 @@ async function handleAnalyzeGap(data: { articleId: number }) {
     .limit(1);
 
   if (!sourceContent.length) {
-    return NextResponse.json({ error: '原文不存在' }, { status: 404 });
+    return NextResponse.json({ success: false, error: '原文不存在' }, { status: 404 });
   }
 
   const source = sourceContent[0];
@@ -424,7 +429,7 @@ async function handleReviewSuggestion(data: {
   const status = data.reviewAction === 'approve' ? 'approved' : 
                  data.reviewAction === 'reject' ? 'rejected' : 'approved';
 
-  const updateData: Record<string, unknown> = {
+  const updateData: Partial<typeof optimizationSuggestions.$inferInsert> = {
     status,
     reviewedAt: now,
     updatedAt: now,
@@ -447,8 +452,8 @@ async function handleReviewSuggestion(data: {
 }
 
 async function handleGetSourceContents(searchParams: URLSearchParams) {
-  const limit = parseInt(searchParams.get('limit') || '100');
-  const offset = parseInt(searchParams.get('offset') || '0');
+  const limit = parseInt(searchParams.get('limit') || '100') || 100;
+  const offset = parseInt(searchParams.get('offset') || '0') || 0;
 
   const result = await db()
     .select({
@@ -477,7 +482,7 @@ async function handleGetSourceContents(searchParams: URLSearchParams) {
 }
 
 async function handleFetchPublishedArticles(searchParams: URLSearchParams) {
-  const count = parseInt(searchParams.get('count') || '10');
+  const count = parseInt(searchParams.get('count') || '10') || 10;
   
   const [auth] = await db()
     .select()
@@ -486,7 +491,7 @@ async function handleFetchPublishedArticles(searchParams: URLSearchParams) {
     .limit(1);
 
   if (!auth || !auth.cookie) {
-    return NextResponse.json({ error: '请先完成微信授权' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '请先完成微信授权' }, { status: 400 });
   }
 
   try {
@@ -495,7 +500,7 @@ async function handleFetchPublishedArticles(searchParams: URLSearchParams) {
   } catch (error) {
     console.error('[闭环优化] 获取已发布文章失败:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : '获取已发布文章失败' 
+      success: false, error: error instanceof Error ? error.message : '获取已发布文章失败' 
     }, { status: 500 });
   }
 }

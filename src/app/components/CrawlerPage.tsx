@@ -182,7 +182,7 @@ function CrawlerPage() {
     }
   };
 
-  const loadCreators = async () => {
+  const loadCreators = async (signal?: AbortSignal) => {
     try {
       const res = await fetch('/api/crawler?action=list-creators');
       const data = await res.json();
@@ -202,7 +202,9 @@ function CrawlerPage() {
 
   useEffect(() => {
     if (activeTab === 'creators') {
-      loadCreators();
+      const controller = new AbortController();
+      loadCreators(controller.signal);
+      return () => controller.abort();
     }
   }, [activeTab]);
 

@@ -196,15 +196,15 @@ export async function POST(request: NextRequest) {
 
     if (action === 'get-wordcloud-cache') {
       if (!cacheKey) {
-        return NextResponse.json({ error: '缺少cacheKey' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '缺少cacheKey' }, { status: 400 });
       }
       const cache = await getWordCloudCache(cacheKey);
-      return NextResponse.json({ cache });
+      return NextResponse.json({ success: true, cache });
     }
 
     if (action === 'save-basic-wordcloud') {
       if (!cacheKey || !wordCloud) {
-        return NextResponse.json({ error: '缺少参数' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
       }
       const articleHash = articles ? generateArticleHash(articles) : '';
       await saveWordCloudCache(cacheKey, wordCloud, articles?.length || 0, articleHash);
@@ -215,13 +215,13 @@ export async function POST(request: NextRequest) {
       const existingConfig = await getLLMConfig();
       if (!existingConfig) {
         return NextResponse.json({ 
-          error: '请先配置LLM API',
+          success: false, error: '请先配置LLM API',
           needConfig: true 
         }, { status: 400 });
       }
 
       if (!wordCloud || wordCloud.length === 0) {
-        return NextResponse.json({ error: '没有词云数据' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '没有词云数据' }, { status: 400 });
       }
 
       const aiWordCloud = await processWordCloudWithAI(wordCloud);
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
         await updateAIWordCloud(cacheKey, aiWordCloud);
       }
       
-      return NextResponse.json({ aiWordCloud });
+      return NextResponse.json({ success: true, aiWordCloud });
     }
 
     if (action === 'clear-cache') {
@@ -246,14 +246,14 @@ export async function POST(request: NextRequest) {
       const existingConfig = await getLLMConfig();
       if (!existingConfig) {
         return NextResponse.json({ 
-          error: '请先配置LLM API',
+          success: false, error: '请先配置LLM API',
           needConfig: true 
         }, { status: 400 });
       }
 
       if (!articles || articles.length === 0) {
         return NextResponse.json({ 
-          error: '没有可分析的文章数据' 
+          success: false, error: '没有可分析的文章数据' 
         }, { status: 400 });
       }
 
@@ -262,21 +262,21 @@ export async function POST(request: NextRequest) {
         wordCloud || []
       );
 
-      return NextResponse.json(result);
+      return NextResponse.json({ success: true, ...result });
     }
 
     if (action === 'generate-analysis-report') {
       const existingConfig = await getLLMConfig();
       if (!existingConfig) {
         return NextResponse.json({ 
-          error: '请先配置LLM API',
+          success: false, error: '请先配置LLM API',
           needConfig: true 
         }, { status: 400 });
       }
 
       if (!articles || articles.length === 0) {
         return NextResponse.json({ 
-          error: '没有可分析的文章数据' 
+          success: false, error: '没有可分析的文章数据' 
         }, { status: 400 });
       }
 
@@ -285,14 +285,14 @@ export async function POST(request: NextRequest) {
         wordCloud || []
       );
 
-      return NextResponse.json({ report });
+      return NextResponse.json({ success: true, report });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     console.error('Topic analysis error:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : '分析失败' 
+      success: false, error: error instanceof Error ? error.message : '分析失败' 
     }, { status: 500 });
   }
 }
@@ -301,10 +301,15 @@ export async function GET() {
   try {
     initDatabase();
     const config = await getLLMConfig();
-    return NextResponse.json(config);
+    const safeConfig = {
+      provider: config.provider,
+      model: config.model,
+      isConfigured: !!(config.apiKey),
+    };
+    return NextResponse.json({ success: true, config: safeConfig });
   } catch (error) {
     console.error('Error fetching LLM config:', error);
-    return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to fetch config' }, { status: 500 });
   }
 }
 

@@ -23,6 +23,10 @@ export async function POST(request: NextRequest) {
     }
 
     for (const account of accounts) {
+      if (!account.name || typeof account.name !== 'string' || !account.name.trim()) {
+        return NextResponse.json({ success: false, error: 'Account name is required' }, { status: 400 });
+      }
+
       if (account.id) {
         const existing = await db()
           .select()
@@ -83,7 +87,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
     }
 
-    await db().delete(wechatAccounts).where(eq(wechatAccounts.id, parseInt(id)));
+    const parsedId = parseInt(id);
+    if (isNaN(parsedId)) {
+      return NextResponse.json({ success: false, error: 'Invalid ID' }, { status: 400 });
+    }
+
+    await db().delete(wechatAccounts).where(eq(wechatAccounts.id, parsedId));
     return NextResponse.json({ success: true, message: 'Account deleted' });
   } catch (error) {
     console.error('Failed to delete wechat account:', error);

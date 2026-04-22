@@ -9,22 +9,34 @@ export async function POST(request: NextRequest) {
     const { action, stage, topic, content, techniques, stream, style } = body;
 
     if (action === 'generate') {
+      if (!stage || !topic) {
+        return errorResponse('stage和topic参数不能为空', 400);
+      }
       const stageTechniques = await getTechniquesForPrompt(stage);
       const result = await generateWithTechniques(stage, topic, techniques || stageTechniques);
       return successResponse({ content: result });
     }
 
     if (action === 'check-ai') {
+      if (!content) {
+        return errorResponse('content参数不能为空', 400);
+      }
       const result = await checkAIContent(content);
       return successResponse(result);
     }
 
     if (action === 'remove-ai') {
+      if (!content) {
+        return errorResponse('content参数不能为空', 400);
+      }
       const result = await removeAIFlavor(content, { style: style || 'casual' });
       return successResponse({ content: result });
     }
 
     if (action === 'humanize') {
+      if (!content) {
+        return errorResponse('content参数不能为空', 400);
+      }
       const result = await humanizeContent(content);
       return successResponse(result);
     }

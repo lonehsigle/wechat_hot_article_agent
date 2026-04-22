@@ -14,11 +14,15 @@ export interface DeepContent {
 export async function fetchWithJina(url: string): Promise<string> {
   const jinaUrl = `https://r.jina.ai/${url}`;
   
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  
   try {
     const response = await fetch(jinaUrl, {
       headers: {
         'Accept': 'text/plain',
       },
+      signal: controller.signal,
     });
     
     if (!response.ok) {
@@ -27,8 +31,13 @@ export async function fetchWithJina(url: string): Promise<string> {
     
     return await response.text();
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Jina fetch timeout (30s)');
+    }
     console.error('Failed to fetch with Jina:', error);
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

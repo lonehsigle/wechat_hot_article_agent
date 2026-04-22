@@ -5,14 +5,13 @@ import { useRouter } from 'next/navigation';
 import DOMPurify from 'dompurify';
 import styles, { mobileStyles } from '../styles';
 
-if (typeof window !== 'undefined' && typeof DOMPurify !== 'undefined') {
-  DOMPurify.addHook?.('afterSanitizeAttributes', (node) => {});
-}
-
-const safeSanitize = (html: string): string => {
+const safeSanitizeHtml = (html: string): string => {
   if (typeof window === 'undefined') return html;
   try {
-    return DOMPurify.sanitize(html);
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'em', 'strong', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'img', 'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel'],
+    });
   } catch {
     return html;
   }
@@ -32,6 +31,7 @@ import TopicAnalysisPage from '../components/TopicAnalysisPage';
 import StyleAnalyzerPage from '../components/StyleAnalyzerPage';
 import AnalyticsPanel from '../components/AnalyticsPanel';
 import PublishedArticlesPage from '../components/PublishedArticlesPage';
+import IPPlanPage from '../components/IPPlanPage';
 import { generateId } from '@/lib/utils/helpers';
 
 interface User {
@@ -244,7 +244,7 @@ export default function AppPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [categories, setCategories] = useState<MonitorCategory[]>(mockCategories);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categories[0]?.id || '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'optimization'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'optimization' | 'ipPlan'>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -289,6 +289,7 @@ export default function AppPage() {
     pendingPublish: true,
     published: true,
     analytics: true,
+    ipPlan: true,
   });
   const [menuSettingsSaving, setMenuSettingsSaving] = useState(false);
   const [menuSettingsSaved, setMenuSettingsSaved] = useState(false);
@@ -459,7 +460,7 @@ export default function AppPage() {
       const url = type && type !== 'all' ? `/api/materials?type=${type}` : '/api/materials';
       const res = await fetch(url);
       const data = await res.json();
-      setMaterials(Array.isArray(data) ? data : []);
+      setMaterials(data.success ? (data.materials || []) : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load materials:', error);
     }
@@ -487,7 +488,7 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/styles');
       const data = await res.json();
-      setWritingStyles(Array.isArray(data) ? data : []);
+      setWritingStyles(data.success ? (data.styles || []) : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load writing styles:', error);
     }
@@ -514,7 +515,7 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/benchmark');
       const data = await res.json();
-      setBenchmarkAccounts(Array.isArray(data) ? data : []);
+      setBenchmarkAccounts(data.success ? (data.accounts || []) : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load benchmark accounts:', error);
     }
@@ -524,7 +525,7 @@ export default function AppPage() {
     try {
       const res = await fetch(`/api/benchmark?accountId=${accountId}&withTitles=true`);
       const data = await res.json();
-      setViralTitles(Array.isArray(data) ? data : []);
+      setViralTitles(data.success ? (data.titles || []) : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load viral titles:', error);
     }
@@ -559,7 +560,9 @@ export default function AppPage() {
         }),
       });
       const data = await res.json();
-      setBenchmarkAccounts(prev => [...prev, data]);
+      if (data.success && data.account) {
+        setBenchmarkAccounts(prev => [...prev, data.account]);
+      }
       setShowAddBenchmark(false);
       setNewBenchmark({
         platform: '微信公众号',
@@ -609,7 +612,7 @@ export default function AppPage() {
         }),
       });
       const data = await res.json();
-      alert(`成功导入 ${data.count} 条标题`);
+      alert(`成功导入 ${data.success ? (data.count || 0) : 0} 条标题`);
       setShowBatchImport(false);
       setBatchTitles('');
       loadViralTitles(selectedBenchmarkAccount.id);
@@ -655,15 +658,17 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/wechat-accounts');
       const data = await res.json();
-      const accounts = Array.isArray(data) ? data : (data.accounts || []);
+      const accounts = data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : (data.accounts || []));
       if (accounts.length > 0) {
-        const formatted = accounts.map((a: { id: number; name: string; appId: string; appSecret: string; authorName: string; isDefault: boolean }) => ({
+        const formatted = accounts.map((a: { id: number; name: string; appId: string; appSecret: string; authorName: string; isDefault: boolean; targetAudience?: string; readerPersona?: string }) => ({
           id: String(a.id),
           name: a.name,
           appId: a.appId || '',
           appSecret: a.appSecret || '',
           authorName: a.authorName || '',
           isDefault: a.isDefault || false,
+          targetAudience: a.targetAudience || '',
+          readerPersona: a.readerPersona || '',
         }));
         setWechatAccounts(formatted);
         const defaultAccount = formatted.find((a: WechatAccount) => a.isDefault);
@@ -821,20 +826,25 @@ export default function AppPage() {
             appSecret: editingAccount.appSecret,
             authorName: editingAccount.authorName,
             isDefault: editingAccount.isDefault,
+            targetAudience: editingAccount.targetAudience,
+            readerPersona: editingAccount.readerPersona,
           }),
         });
         const data = await res.json();
-        if (data) {
+        const account = data.success ? data.data : data;
+        if (account) {
           setWechatAccounts(prev => [...prev, {
-            id: String(data.id),
-            name: data.name,
-            appId: data.appId || '',
-            appSecret: data.appSecret || '',
-            authorName: data.authorName || '',
-            isDefault: data.isDefault || false,
+            id: String(account.id),
+            name: account.name,
+            appId: account.appId || '',
+            appSecret: account.appSecret || '',
+            authorName: account.authorName || '',
+            isDefault: account.isDefault || false,
+            targetAudience: account.targetAudience || '',
+            readerPersona: account.readerPersona || '',
           }]);
           if (!selectedAccountId) {
-            setSelectedAccountId(String(data.id));
+            setSelectedAccountId(String(account.id));
           }
         }
       } else {
@@ -847,6 +857,8 @@ export default function AppPage() {
             appId: editingAccount.appId,
             appSecret: editingAccount.appSecret,
             authorName: editingAccount.authorName,
+            targetAudience: editingAccount.targetAudience,
+            readerPersona: editingAccount.readerPersona,
           }),
         });
         setWechatAccounts(prev => prev.map(a => a.id === editingAccount.id ? editingAccount : a));
@@ -938,7 +950,7 @@ export default function AppPage() {
 
   return (
     <div style={styles.layout}>
-      <style dangerouslySetInnerHTML={{ __html: safeSanitize(mobileStyles) }} />
+      <style dangerouslySetInnerHTML={{ __html: mobileStyles }} />
       
       {mobileMenuOpen && (
         <div 
@@ -1087,9 +1099,25 @@ export default function AppPage() {
             </button>
           )}
           
-          {(menuSettings.topicAnalysis || menuSettings.create || menuSettings.published) && (
+          {(menuSettings.topicAnalysis || menuSettings.create || menuSettings.published || menuSettings.ipPlan) && (
             <div style={styles.menuGroup}>
               {!sidebarCollapsed && <div style={styles.menuGroupTitle}>✍️ 创作</div>}
+              {menuSettings.ipPlan && (
+                <button
+                  style={{ 
+                    ...styles.tabItem, 
+                    ...styles.subMenuItem, 
+                    ...(activeTab === 'ipPlan' ? styles.tabItemActive : {}),
+                    justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                    padding: sidebarCollapsed ? '10px 0' : '10px 12px 10px 24px',
+                  }}
+                  onClick={() => setActiveTab('ipPlan')}
+                  title={sidebarCollapsed ? 'IP方案' : ''}
+                >
+                  <span>🎯</span>
+                  {!sidebarCollapsed && <span style={{ marginLeft: '6px' }}>IP方案</span>}
+                </button>
+              )}
               {menuSettings.topicAnalysis && (
                 <button
                   style={{ 
@@ -1232,6 +1260,7 @@ export default function AppPage() {
           {activeTab === 'optimization' && '闭环优化'}
           {activeTab === 'settings' && '系统设置'}
           {activeTab === 'styles' && '写作风格'}
+          {activeTab === 'ipPlan' && 'IP方案'}
         </span>
         <div style={{ width: '40px' }} />
       </header>
@@ -2020,6 +2049,10 @@ export default function AppPage() {
 
         {activeTab === 'optimization' && (
           <OptimizationLoop />
+        )}
+
+        {activeTab === 'ipPlan' && (
+          <IPPlanPage />
         )}
       </main>
 

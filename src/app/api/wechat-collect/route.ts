@@ -36,49 +36,44 @@ export async function GET(request: NextRequest) {
     if (action === 'check-auth') {
       const auth = await db().select().from(wechatAuth).where(eq(wechatAuth.status, 'active')).limit(1);
       if (auth.length > 0 && auth[0].expiresAt && auth[0].expiresAt > new Date()) {
-        return NextResponse.json({ authorized: true, auth: auth[0] });
+        return NextResponse.json({ success: true, authorized: true, auth: auth[0] });
       }
-      return NextResponse.json({ authorized: false });
+      return NextResponse.json({ success: true, authorized: false });
     }
 
     if (action === 'list-subscriptions') {
       const subscriptions = await db().select().from(wechatSubscriptions).orderBy(desc(wechatSubscriptions.createdAt));
-      return NextResponse.json(subscriptions);
+      return NextResponse.json({ success: true, subscriptions });
     }
 
     if (action === 'list-articles') {
       const subscriptionId = searchParams.get('subscriptionId');
-      const page = parseInt(searchParams.get('page') || '1');
-      const pageSize = parseInt(searchParams.get('pageSize') || '20');
+      const page = parseInt(searchParams.get('page') || '1') || 1;
+      const pageSize = parseInt(searchParams.get('pageSize') || '20') || 20;
       
       if (subscriptionId) {
+        const parsedSubId = parseInt(subscriptionId);
+        if (isNaN(parsedSubId)) {
+          return NextResponse.json({ success: false, error: 'Invalid subscriptionId' }, { status: 400 });
+        }
         const articles = await db().select().from(collectedArticles)
-          .where(eq(collectedArticles.subscriptionId, parseInt(subscriptionId)))
+          .where(eq(collectedArticles.subscriptionId, parsedSubId))
           .orderBy(desc(collectedArticles.publishTime))
           .limit(pageSize)
           .offset((page - 1) * pageSize);
-        return NextResponse.json(articles);
+        return NextResponse.json({ success: true, articles });
       }
       
       const articles = await db().select().from(collectedArticles)
         .orderBy(desc(collectedArticles.publishTime))
         .limit(pageSize)
         .offset((page - 1) * pageSize);
-      return NextResponse.json(articles);
+      return NextResponse.json({ success: true, articles });
     }
 
     if (action === 'list-tasks') {
       const tasks = await db().select().from(collectTasks).orderBy(desc(collectTasks.createdAt));
-      return NextResponse.json(tasks);
-    }
-
-    if (action === 'delete-article') {
-      const articleId = searchParams.get('articleId');
-      if (!articleId) {
-        return NextResponse.json({ error: '缺少文章ID' }, { status: 400 });
-      }
-      await db().delete(collectedArticles).where(eq(collectedArticles.id, parseInt(articleId)));
-      return NextResponse.json({ success: true, message: '文章已删除' });
+      return NextResponse.json({ success: true, tasks });
     }
 
   if (action === 'clear-lock') {
@@ -101,7 +96,7 @@ export async function GET(request: NextRequest) {
     // 再次检查是否还有其他进程在运行
     if (checkLock()) {
       return NextResponse.json({ 
-        error: '授权流程正在运行，请勿重复运行' 
+        success: false, error: '授权流程正在运行，请勿重复运行' 
       }, { status: 400 });
     }
     
@@ -160,7 +155,7 @@ export async function GET(request: NextRequest) {
       releaseLock();
       await controller.close();
       return NextResponse.json({ 
-        error: error instanceof Error ? error.message : '生成二维码失败' 
+        success: false, error: error instanceof Error ? error.message : '生成二维码失败' 
       }, { status: 500 });
     }
   }
@@ -183,29 +178,29 @@ export async function GET(request: NextRequest) {
   if (action === 'check-scan-status') {
     const token = searchParams.get('token');
     if (!token) {
-      return NextResponse.json({ error: 'token is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'token is required' }, { status: 400 });
     }
     
     const [auth] = await db().select().from(wechatAuth).where(eq(wechatAuth.token, token)).limit(1);
     if (!auth) {
-      return NextResponse.json({ status: 'expired', message: '二维码已过期' });
+      return NextResponse.json({ success: true, status: 'expired', message: '二维码已过期' });
     }
     
     if (auth.status === 'active') {
-      return NextResponse.json({ status: 'success', message: '授权成功' });
+      return NextResponse.json({ success: true, status: 'success', message: '授权成功' });
     }
     
     if (auth.status === 'pending') {
-      return NextResponse.json({ status: 'waiting', message: '等待扫码' });
+      return NextResponse.json({ success: true, status: 'waiting', message: '等待扫码' });
     }
     
-    return NextResponse.json({ status: 'expired', message: '二维码已过期' });
+    return NextResponse.json({ success: true, status: 'expired', message: '二维码已过期' });
   }
 
   if (action === 'get-account-info') {
     const cookie = searchParams.get('cookie');
     if (!cookie) {
-      return NextResponse.json({ error: 'cookie is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'cookie is required' }, { status: 400 });
     }
     
     try {
@@ -228,16 +223,16 @@ export async function GET(request: NextRequest) {
         });
       }
       
-      return NextResponse.json({ error: '无法获取账号信息，请检查Cookie是否正确' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '无法获取账号信息，请检查Cookie是否正确' }, { status: 400 });
     } catch (error) {
-      return NextResponse.json({ error: '获取账号信息失败' }, { status: 500 });
+      return NextResponse.json({ success: false, error: '获取账号信息失败' }, { status: 500 });
     }
   }
 
   if (action === 'get-article-info') {
     const url = searchParams.get('url');
     if (!url) {
-      return NextResponse.json({ error: 'url is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'url is required' }, { status: 400 });
     }
     
     try {
@@ -265,9 +260,9 @@ export async function GET(request: NextRequest) {
         });
       }
       
-      return NextResponse.json({ error: '无法解析文章链接，请确认是有效的微信公众号文章链接' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '无法解析文章链接，请确认是有效的微信公众号文章链接' }, { status: 400 });
     } catch (error) {
-      return NextResponse.json({ error: '解析文章链接失败' }, { status: 500 });
+      return NextResponse.json({ success: false, error: '解析文章链接失败' }, { status: 500 });
     }
   }
 
@@ -276,7 +271,7 @@ export async function GET(request: NextRequest) {
     const cookie = searchParams.get('cookie');
     
     if (!query || !cookie) {
-      return NextResponse.json({ error: 'query and cookie are required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'query and cookie are required' }, { status: 400 });
     }
     
     try {
@@ -284,7 +279,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, results });
     } catch (error) {
       return NextResponse.json({ 
-        error: error instanceof Error ? error.message : '搜索公众号失败' 
+        success: false, error: error instanceof Error ? error.message : '搜索公众号失败' 
       }, { status: 500 });
     }
   }
@@ -293,7 +288,7 @@ export async function GET(request: NextRequest) {
     const url = searchParams.get('url');
     
     if (!url) {
-      return NextResponse.json({ error: 'url is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'url is required' }, { status: 400 });
     }
     
     try {
@@ -301,24 +296,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, article });
     } catch (error) {
       return NextResponse.json({ 
-        error: error instanceof Error ? error.message : '采集文章失败' 
+        success: false, error: error instanceof Error ? error.message : '采集文章失败' 
       }, { status: 500 });
     }
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : '服务器内部错误' 
+      success: false, error: error instanceof Error ? error.message : '服务器内部错误' 
     }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { action } = body as { action: string };
 
+  try {
   if (action === 'init-auth') {
     const token = randomBytes(32).toString('hex');
     const [auth] = await db().insert(wechatAuth).values({
@@ -356,7 +357,7 @@ export async function POST(request: NextRequest) {
     
     const existing = await db().select().from(wechatSubscriptions).where(eq(wechatSubscriptions.biz, biz)).limit(1);
     if (existing.length > 0) {
-      return NextResponse.json({ error: '该公众号已添加' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '该公众号已添加' }, { status: 400 });
     }
     
     const [subscription] = await db().insert(wechatSubscriptions).values({
@@ -387,7 +388,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'delete-subscription') {
-    const { id } = body;
+    const { id } = body as { id?: number };
+    if (!id) {
+      return NextResponse.json({ success: false, error: '缺少订阅ID' }, { status: 400 });
+    }
     
     await db().delete(wechatSubscriptions).where(eq(wechatSubscriptions.id, id));
     
@@ -395,16 +399,19 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'start-collect') {
-    const { subscriptionId, type, count } = body;
+    const { subscriptionId, type, count } = body as { subscriptionId?: number; type?: string; count?: number };
+    if (!subscriptionId) {
+      return NextResponse.json({ success: false, error: '缺少订阅ID' }, { status: 400 });
+    }
     
     const [subscription] = await db().select().from(wechatSubscriptions).where(eq(wechatSubscriptions.id, subscriptionId));
     if (!subscription) {
-      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Subscription not found' }, { status: 404 });
     }
     
     const [auth] = await db().select().from(wechatAuth).where(eq(wechatAuth.status, 'active')).limit(1);
     if (!auth || !auth.cookie) {
-      return NextResponse.json({ error: '请先完成微信授权' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '请先完成微信授权' }, { status: 400 });
     }
     
     const [task] = await db().insert(collectTasks).values({
@@ -471,7 +478,7 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(collectTasks.id, task.id));
       
-      return NextResponse.json({ error: error instanceof Error ? error.message : '采集失败' }, { status: 500 });
+      return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '采集失败' }, { status: 500 });
     }
   }
 
@@ -501,10 +508,10 @@ export async function POST(request: NextRequest) {
     
     const targetId = articleId || id;
     if (!targetId) {
-      return NextResponse.json({ error: '缺少文章ID' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '缺少文章ID' }, { status: 400 });
     }
     
-    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    const updateData: Partial<typeof collectedArticles.$inferInsert> = { updatedAt: new Date() };
     if (content !== undefined) updateData.content = content;
     if (contentHtml !== undefined) updateData.contentHtml = contentHtml;
     if (tags !== undefined) updateData.tags = tags;
@@ -542,7 +549,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('POST API Error:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : '服务器内部错误' 
+    }, { status: 500 });
+  }
 }
 
 async function fetchWechatArticles(cookie: string, biz: string, count: number) {
@@ -682,7 +695,7 @@ async function searchBiz(cookie: string, query: string, begin: number = 0, count
     throw new Error('搜索结果格式异常');
   }
 
-  const results = (publishPage as any)?.search_result?.result || [];
+  const results = (publishPage as { search_result?: { result?: Array<{ fakeid?: string; nickname?: string; alias?: string; round_head_img?: string; signature?: string }> } })?.search_result?.result || [];
   
   return results.map((item: { fakeid?: string; nickname?: string; alias?: string; round_head_img?: string; signature?: string }) => ({
     biz: item.fakeid || '',
@@ -801,17 +814,10 @@ async function collectArticleByUrl(articleUrl: string) {
   const coverMatch2 = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/);
   cover = coverMatch1?.[1] || coverMatch2?.[1] || '';
   
-  // 获取发布时间
-  // 微信的ct是UTC时间戳（秒），需要转换为北京时间（UTC+8）
   let createTime: number | null = null;
   const timeMatch1 = html.match(/var\s+ct\s*=\s*["']?(\d+)["']?/);
   const timeMatch2 = html.match(/data-publish-time\s*=\s*["']?(\d+)["']?/);
-  const rawTime = timeMatch1 ? parseInt(timeMatch1[1]) : (timeMatch2 ? parseInt(timeMatch2[1]) : null);
-  
-  // 微信时间戳是UTC时间，需要加8小时转换为北京时间
-  if (rawTime) {
-    createTime = rawTime + 8 * 3600; // 加8小时
-  }
+  createTime = timeMatch1 ? parseInt(timeMatch1[1]) : (timeMatch2 ? parseInt(timeMatch2[1]) : null);
   
   // 获取文章ID
   let msgId = `url_${Date.now()}`;

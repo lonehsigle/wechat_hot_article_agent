@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       case 'list':
         return await getAlbumList(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Album API error:', error);

@@ -43,16 +43,18 @@ function AnalyticsPanel() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
 
   useEffect(() => {
-    loadAnalytics();
+    const controller = new AbortController();
+    loadAnalytics(controller.signal);
+    return () => controller.abort();
   }, [dateRange]);
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const [statsRes, articlesRes, suggestionsRes] = await Promise.all([
-        fetch('/api/optimization-loop?action=stats'),
-        fetch('/api/optimization-loop?action=list'),
-        fetch('/api/optimization-loop?action=suggestions'),
+        fetch('/api/optimization-loop?action=stats', { signal }),
+        fetch('/api/optimization-loop?action=list', { signal }),
+        fetch('/api/optimization-loop?action=suggestions', { signal }),
       ]);
 
       const statsData = await statsRes.json();

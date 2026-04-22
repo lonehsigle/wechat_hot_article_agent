@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWechatAccounts, getWechatAccountById, getDefaultWechatAccount, createWechatAccount, updateWechatAccount, deleteWechatAccount, setDefaultWechatAccount } from '@/lib/db/queries';
 import { initDatabase } from '@/lib/db';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
+import { verifyAuth, unauthorizedResponse } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (!auth.authenticated) {
+    return unauthorizedResponse();
+  }
+
   try {
     initDatabase();
     const { searchParams } = new URL(request.url);
@@ -29,6 +35,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (!auth.authenticated) {
+    return unauthorizedResponse();
+  }
+
   try {
     initDatabase();
     const body = await request.json();
@@ -41,6 +52,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (!auth.authenticated) {
+    return unauthorizedResponse();
+  }
+
   try {
     initDatabase();
     const body = await request.json();
@@ -70,6 +86,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = await verifyAuth(request);
+  if (!auth.authenticated) {
+    return unauthorizedResponse();
+  }
+
   try {
     initDatabase();
     const { searchParams } = new URL(request.url);

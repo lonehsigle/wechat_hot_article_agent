@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       case 'export':
         return await exportArticles(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Export error:', error);
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       case 'export':
         return await exportArticlesPost(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Export error:', error);

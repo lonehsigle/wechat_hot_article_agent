@@ -139,7 +139,8 @@ function calculateKeywordDensity(content: string, keywords: string[]): { keyword
   const results: { keyword: string; count: number; density: number }[] = [];
 
   for (const keyword of keywords) {
-    const regex = new RegExp(keyword, 'g');
+    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedKeyword, 'g');
     const matches = content.match(regex);
     const count = matches ? matches.length : 0;
     const density = totalWords > 0 ? (count * keyword.length / totalWords) * 100 : 0;
@@ -397,87 +398,118 @@ async function batchAnalyzeArticles(articleIds: number[]): Promise<{
 }
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get('action');
 
-  if (action === 'analyze') {
-    const articleId = searchParams.get('articleId');
-    if (!articleId) {
-      return NextResponse.json({ error: 'articleId is required' }, { status: 400 });
+    if (action === 'analyze') {
+      const articleId = searchParams.get('articleId');
+      if (!articleId) {
+        return NextResponse.json({ success: false, error: 'articleId is required' }, { status: 400 });
+      }
+      const parsedId = parseInt(articleId, 10);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, error: 'Invalid articleId' }, { status: 400 });
+      }
+
+      const analysis = await analyzeArticleSEO(parsedId);
+      if (!analysis) {
+        return NextResponse.json({ success: false, error: 'Article not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, analysis });
     }
 
-    const analysis = await analyzeArticleSEO(parseInt(articleId));
-    return NextResponse.json(analysis);
-  }
+    if (action === 'optimize') {
+      const articleId = searchParams.get('articleId');
+      if (!articleId) {
+        return NextResponse.json({ success: false, error: 'articleId is required' }, { status: 400 });
+      }
+      const parsedId = parseInt(articleId, 10);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, error: 'Invalid articleId' }, { status: 400 });
+      }
 
-  if (action === 'optimize') {
-    const articleId = searchParams.get('articleId');
-    if (!articleId) {
-      return NextResponse.json({ error: 'articleId is required' }, { status: 400 });
+      const report = await optimizeForWechat(parsedId);
+      return NextResponse.json({ success: true, report });
     }
 
-    const report = await optimizeForWechat(parseInt(articleId));
-    return NextResponse.json(report);
-  }
+    if (action === 'keywords') {
+      const topic = searchParams.get('topic');
+      const existingKeywords = searchParams.get('keywords')?.split(',') || [];
+      
+      if (!topic) {
+        return NextResponse.json({ success: false, error: 'topic is required' }, { status: 400 });
+      }
 
-  if (action === 'keywords') {
-    const topic = searchParams.get('topic');
-    const existingKeywords = searchParams.get('keywords')?.split(',') || [];
-    
-    if (!topic) {
-      return NextResponse.json({ error: 'topic is required' }, { status: 400 });
+      const suggestions = await generateKeywordSuggestions(topic, existingKeywords);
+      return NextResponse.json({ success: true, suggestions });
     }
 
-    const suggestions = await generateKeywordSuggestions(topic, existingKeywords);
-    return NextResponse.json({ suggestions });
-  }
+    if (action === 'batch-analyze') {
+      const articleIds = searchParams.get('articleIds')?.split(',').map(Number).filter(n => !isNaN(n));
+      if (!articleIds || articleIds.length === 0) {
+        return NextResponse.json({ success: false, error: 'articleIds is required' }, { status: 400 });
+      }
 
-  if (action === 'batch-analyze') {
-    const articleIds = searchParams.get('articleIds')?.split(',').map(Number).filter(Boolean);
-    if (!articleIds || articleIds.length === 0) {
-      return NextResponse.json({ error: 'articleIds is required' }, { status: 400 });
+      const result = await batchAnalyzeArticles(articleIds);
+      return NextResponse.json({ success: true, ...result });
     }
 
-    const result = await batchAnalyzeArticles(articleIds);
-    return NextResponse.json(result);
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('SEO optimize GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'SEO分析失败' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action, data } = body;
+  try {
+    const body = await request.json();
+    const { action, data } = body;
 
-  if (action === 'batch-optimize') {
-    const { articleIds } = data as { articleIds: number[] };
-    const result = await batchAnalyzeArticles(articleIds);
-    return NextResponse.json(result);
-  }
+    if (action === 'batch-optimize') {
+      const { articleIds } = data as { articleIds: number[] };
+      if (!Array.isArray(articleIds) || articleIds.length === 0) {
+        return NextResponse.json({ success: false, error: 'articleIds is required' }, { status: 400 });
+      }
+      const result = await batchAnalyzeArticles(articleIds);
+      return NextResponse.json({ success: true, ...result });
+    }
 
-  if (action === 'apply-optimization') {
-    const { articleId, optimizedTitle, optimizedDigest } = data as {
-      articleId: number;
-      optimizedTitle?: string;
-      optimizedDigest?: string;
-    };
+    if (action === 'apply-optimization') {
+      const { articleId, optimizedTitle, optimizedDigest } = data as {
+        articleId: number;
+        optimizedTitle?: string;
+        optimizedDigest?: string;
+      };
 
-    const updateData: Record<string, string> = {};
-    if (optimizedTitle) updateData.title = optimizedTitle;
-    if (optimizedDigest) updateData.digest = optimizedDigest;
+      if (!articleId || isNaN(Number(articleId))) {
+        return NextResponse.json({ success: false, error: 'Valid articleId is required' }, { status: 400 });
+      }
 
-    if (Object.keys(updateData).length > 0) {
+      const updateData: Partial<typeof collectedArticles.$inferInsert> = { updatedAt: new Date() };
+      if (optimizedTitle) updateData.title = optimizedTitle;
+      if (optimizedDigest) updateData.digest = optimizedDigest;
+
       await db().update(collectedArticles)
         .set(updateData)
         .where(eq(collectedArticles.id, articleId));
+
+      return NextResponse.json({
+        success: true,
+        message: '优化已应用',
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: '优化已应用',
-      updated: Object.keys(updateData),
-    });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('SEO optimize POST error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'SEO优化失败' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }

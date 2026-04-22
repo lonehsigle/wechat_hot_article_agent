@@ -12,27 +12,39 @@ import { publishedArticles, articleStats } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const articleId = searchParams.get('articleId');
-  const stats = searchParams.get('stats');
+  try {
+    const { searchParams } = new URL(request.url);
+    const articleId = searchParams.get('articleId');
+    const stats = searchParams.get('stats');
 
-  const database = db();
+    const database = db();
 
-  if (articleId && stats === 'true') {
-    const statRecords = await database
+    if (articleId && stats === 'true') {
+      const parsedId = parseInt(articleId, 10);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, error: 'Invalid articleId' }, { status: 400 });
+      }
+      const statRecords = await database
+        .select()
+        .from(articleStats)
+        .where(eq(articleStats.articleId, parsedId))
+        .orderBy(desc(articleStats.recordTime));
+      return NextResponse.json({ success: true, stats: statRecords });
+    }
+
+    const articles = await database
       .select()
-      .from(articleStats)
-      .where(eq(articleStats.articleId, parseInt(articleId)))
-      .orderBy(desc(articleStats.recordTime));
-    return NextResponse.json(statRecords);
+      .from(publishedArticles)
+      .orderBy(desc(publishedArticles.createdAt));
+    
+    return NextResponse.json({ success: true, articles });
+  } catch (error) {
+    console.error('Publish API GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '获取发布文章失败' },
+      { status: 500 }
+    );
   }
-
-  const articles = await database
-    .select()
-    .from(publishedArticles)
-    .orderBy(desc(publishedArticles.createdAt));
-  
-  return NextResponse.json(articles);
 }
 
 export async function POST(request: NextRequest) {
@@ -41,12 +53,16 @@ export async function POST(request: NextRequest) {
     const { action, accountId, title, content, coverImageUrl, autoSearchImages, images, layoutStyle } = body;
 
     if (action === 'search-images') {
+      if (!title || !content) {
+        return NextResponse.json({ success: false, error: 'title和content参数不能为空' }, { status: 400 });
+      }
       const images = await generateArticleImages({
         title,
         content,
         imageCount: 5,
       });
       return NextResponse.json({ 
+        success: true,
         images: images.map(img => ({
           id: img.id,
           url: img.url,
@@ -60,14 +76,17 @@ export async function POST(request: NextRequest) {
 
     if (action === 'upload-image') {
       const { imageUrl, type } = body;
+      if (!imageUrl) {
+        return NextResponse.json({ success: false, error: 'imageUrl参数不能为空' }, { status: 400 });
+      }
       const result = await uploadImageFromUrl(accountId, imageUrl, type || 'image');
-      return NextResponse.json(result);
+      return NextResponse.json({ success: true, ...result });
     }
 
     if (action === 'publish-with-images') {
       const account = await getWechatAccount(accountId);
       if (!account) {
-        return NextResponse.json({ error: '公众号账号不存在' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '公众号账号不存在' }, { status: 400 });
       }
 
       const imageMappings: { original: string; wechatUrl: string }[] = [];
@@ -175,7 +194,7 @@ export async function POST(request: NextRequest) {
     if (action === 'publish') {
       const account = await getWechatAccount(accountId);
       if (!account) {
-        return NextResponse.json({ error: '公众号账号不存在' }, { status: 400 });
+        return NextResponse.json({ success: false, error: '公众号账号不存在' }, { status: 400 });
       }
 
       let thumbMediaId: string | undefined;
@@ -232,7 +251,7 @@ export async function POST(request: NextRequest) {
 
       if (!thumbMediaId) {
         return NextResponse.json({ 
-          error: '缺少封面图片。请提供封面图或开启自动搜索图片功能。' 
+          success: false, error: '缺少封面图片。请提供封面图或开启自动搜索图片功能。' 
         }, { status: 400 });
       }
 
@@ -265,15 +284,18 @@ export async function POST(request: NextRequest) {
 
     if (action === 'preview-html') {
       const { content, images, layoutStyle } = body;
+      if (!content) {
+        return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
+      }
       const html = convertToWechatHtml(content, images || [], layoutStyle);
-      return NextResponse.json({ html });
+      return NextResponse.json({ success: true, html });
     }
 
-    return NextResponse.json({ error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     console.error('Publish API error:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : '操作失败' 
+      success: false, error: error instanceof Error ? error.message : '操作失败' 
     }, { status: 500 });
   }
 }

@@ -299,7 +299,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Hot topic collect API error:', error);
     return NextResponse.json(
@@ -316,10 +316,14 @@ export async function GET(request: NextRequest) {
   const database = db();
 
   if (topicId) {
+    const parsedTopicId = parseInt(topicId);
+    if (isNaN(parsedTopicId)) {
+      return NextResponse.json({ success: false, error: 'Invalid topicId' }, { status: 400 });
+    }
     const materials = await database
       .select()
       .from(materialLibrary)
-      .where(eq(materialLibrary.topicId, parseInt(topicId)))
+      .where(eq(materialLibrary.topicId, parsedTopicId))
       .orderBy(desc(materialLibrary.createdAt));
 
     return NextResponse.json(materials);

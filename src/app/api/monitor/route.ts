@@ -9,12 +9,13 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
 
+  try {
   if (action === 'status') {
     return await getMonitorStatus();
   }
 
   if (action === 'logs') {
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '50') || 50;
     return await getMonitorLogs(limit);
   }
 
@@ -22,15 +23,27 @@ export async function GET(request: NextRequest) {
     return await getAlerts();
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('[监控] GET API 错误:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { action } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { action } = body as { action: string };
 
+  try {
   if (action === 'start') {
-    const { interval = 300 } = body;
+    const { interval = 300 } = body as { interval?: number };
     return await startMonitor(interval);
   }
 
@@ -46,7 +59,13 @@ export async function POST(request: NextRequest) {
     return await checkBlackHorses();
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('[监控] POST API 错误:', error);
+    return NextResponse.json({ 
+      success: false, error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
+  }
 }
 
 async function getMonitorStatus() {
@@ -70,6 +89,7 @@ async function getMonitorStatus() {
     .limit(10);
 
   return NextResponse.json({
+    success: true,
     status: 'running',
     lastHotTopicsFetch: recentTopics[0]?.fetchedAt || null,
     lastArticleFetch: recentArticles[0]?.createdAt || null,
@@ -89,7 +109,7 @@ async function getMonitorLogs(limit: number) {
     .orderBy(desc(monitorLogs.createdAt))
     .limit(limit);
 
-  return NextResponse.json({ logs });
+  return NextResponse.json({ success: true, logs });
 }
 
 async function getAlerts() {
@@ -114,6 +134,7 @@ async function getAlerts() {
     .limit(10);
 
   return NextResponse.json({
+    success: true,
     blackHorses: newBlackHorses,
     trending: trendingTopics,
     alertCount: newBlackHorses.length + trendingTopics.length,

@@ -8,17 +8,17 @@ export async function POST(request: NextRequest) {
   const { taskId } = body;
 
   if (!taskId) {
-    return NextResponse.json({ error: 'taskId is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'taskId is required' }, { status: 400 });
   }
 
   const [task] = await db().select().from(collectTasks).where(eq(collectTasks.id, taskId));
   if (!task) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 });
   }
 
   const [subscription] = await db().select().from(wechatSubscriptions).where(eq(wechatSubscriptions.id, task.subscriptionId!));
   if (!subscription) {
-    return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Subscription not found' }, { status: 404 });
   }
 
   await db().update(collectTasks)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(collectTasks.id, taskId));
     
-    return NextResponse.json({ error: 'Collect failed' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Collect failed' }, { status: 500 });
   }
 }
 

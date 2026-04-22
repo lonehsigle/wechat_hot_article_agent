@@ -495,8 +495,8 @@ export default function OptimizationLoop() {
       const articlesData = await articlesRes.json();
       const statsData = await statsRes.json();
 
-      setArticles(articlesData.articles || []);
-      setStats(statsData);
+      setArticles(articlesData.success ? (articlesData.articles || []) : []);
+      setStats(statsData.success ? statsData.stats : statsData);
     } catch (error) {
       console.error('获取数据失败:', error);
     } finally {
@@ -508,7 +508,7 @@ export default function OptimizationLoop() {
     try {
       const res = await fetch('/api/optimization-loop?action=source-contents');
       const data = await res.json();
-      setSourceContents(data.contents || []);
+      setSourceContents(data.success ? (data.contents || []) : []);
     } catch (error) {
       console.error('获取原文列表失败:', error);
     }
@@ -538,7 +538,7 @@ export default function OptimizationLoop() {
     try {
       const res = await fetch(`/api/optimization-loop?action=suggestions&status=${filterStatus}&priority=${filterPriority}`);
       const data = await res.json();
-      setSuggestions(data.suggestions || []);
+      setSuggestions(data.success ? (data.suggestions || []) : []);
     } catch (error) {
       console.error('获取优化建议失败:', error);
     }

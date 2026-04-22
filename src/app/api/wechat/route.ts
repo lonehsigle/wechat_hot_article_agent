@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       case 'logout':
         return await logout(request);
       default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('WeChat API error:', error);
@@ -70,7 +70,7 @@ async function checkScan(request: NextRequest) {
   const setCookie = request.nextUrl.searchParams.get('cookie') || '';
   
   if (!uuid) {
-    return NextResponse.json({ error: 'uuid is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'uuid is required' }, { status: 400 });
   }
 
   const response = await fetch(
@@ -93,7 +93,7 @@ async function checkLogin(request: NextRequest) {
   const setCookie = request.nextUrl.searchParams.get('cookie') || '';
   
   if (!uuid) {
-    return NextResponse.json({ error: 'uuid is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'uuid is required' }, { status: 400 });
   }
 
   const response = await fetch(

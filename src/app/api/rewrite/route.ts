@@ -57,10 +57,11 @@ export async function POST(request: NextRequest) {
       return await handleRewriteDirect(body.content, body.title, body.style);
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Rewrite API error:', error);
     return NextResponse.json({ 
+      success: false,
       error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
@@ -72,7 +73,7 @@ async function handleRewriteDirect(
   style: string = '专业正式'
 ) {
   if (!content) {
-    return NextResponse.json({ error: 'content is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'content is required' }, { status: 400 });
   }
 
   const systemPrompt = `你是一位专业的公众号内容创作者，擅长将文章改写成高质量的原创内容。
@@ -111,13 +112,15 @@ ${content}
   let rewrittenContent: string;
   try {
     const response = await callLLM([
-      { role: 'user', content: systemPrompt + '\n\n' + userPrompt },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
     ], { temperature: 0.8, maxTokens: 4096 });
     
     rewrittenContent = response.content;
   } catch (error) {
     console.error('Rewrite failed:', error);
     return NextResponse.json({ 
+      success: false,
       error: error instanceof Error ? error.message : 'Rewrite failed' 
     }, { status: 500 });
   }
@@ -135,7 +138,7 @@ async function handleRewrite(
   removeAI: boolean = true
 ) {
   if (!articleIds || !Array.isArray(articleIds) || articleIds.length === 0) {
-    return NextResponse.json({ error: 'articleIds is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'articleIds is required' }, { status: 400 });
   }
 
   const articles = await db().select()
@@ -143,7 +146,7 @@ async function handleRewrite(
     .where(inArray(collectedArticles.id, articleIds));
 
   if (articles.length === 0) {
-    return NextResponse.json({ error: 'No articles found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'No articles found' }, { status: 404 });
   }
 
   const systemPrompt = buildRewriteSystemPrompt(style);
@@ -152,7 +155,8 @@ async function handleRewrite(
   let rewrittenContent: string;
   try {
     const response = await callLLM([
-      { role: 'user', content: systemPrompt + '\n\n' + userPrompt },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
     ], { temperature: 0.8, maxTokens: 4096 });
     
     rewrittenContent = response.content;
@@ -212,7 +216,7 @@ async function handleRewriteFromTopics(
   removeAI: boolean = true
 ) {
   if (!topicIds || !Array.isArray(topicIds) || topicIds.length === 0) {
-    return NextResponse.json({ error: 'topicIds is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'topicIds is required' }, { status: 400 });
   }
 
   const topics = await db().select()
@@ -220,7 +224,7 @@ async function handleRewriteFromTopics(
     .where(inArray(hotTopics.id, topicIds));
 
   if (topics.length === 0) {
-    return NextResponse.json({ error: 'No topics found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'No topics found' }, { status: 404 });
   }
 
   const systemPrompt = `你是一位资深的自媒体内容创作者，擅长撰写热点评论文章。
@@ -262,7 +266,8 @@ ${i + 1}. 【${t.platform}】${t.title}
   let content: string;
   try {
     const response = await callLLM([
-      { role: 'user', content: systemPrompt + '\n\n' + userPrompt },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
     ], { temperature: 0.8, maxTokens: 4096 });
     
     content = response.content;
@@ -318,7 +323,7 @@ ${i + 1}. 【${t.platform}】${t.title}
 
 async function handleCheckAI(content: string) {
   if (!content) {
-    return NextResponse.json({ error: 'content is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'content is required' }, { status: 400 });
   }
 
   try {
@@ -334,7 +339,7 @@ async function handleCheckAI(content: string) {
 
 async function handleRemoveAI(content: string) {
   if (!content) {
-    return NextResponse.json({ error: 'content is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'content is required' }, { status: 400 });
   }
 
   try {
@@ -358,7 +363,7 @@ async function handleListRewrites() {
 
 async function handleGetRewrite(id: number) {
   if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
   }
 
   const [rewrite] = await db().select()
@@ -366,7 +371,7 @@ async function handleGetRewrite(id: number) {
     .where(eq(articleRewrites.id, id));
   
   if (!rewrite) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
   }
 
   return NextResponse.json({ success: true, rewrite });
@@ -374,10 +379,10 @@ async function handleGetRewrite(id: number) {
 
 async function handleUpdateRewrite(id: number, content: string, title?: string) {
   if (!id || !content) {
-    return NextResponse.json({ error: 'id and content are required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id and content are required' }, { status: 400 });
   }
 
-  const updateData: Record<string, unknown> = {
+  const updateData: Partial<typeof articleRewrites.$inferInsert> = {
     content,
     wordCount: content.length,
     updatedAt: new Date(),
@@ -397,7 +402,7 @@ async function handleUpdateRewrite(id: number, content: string, title?: string) 
 
 async function handleDeleteRewrite(id: number) {
   if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
   }
 
   await db().delete(articleRewrites).where(eq(articleRewrites.id, id));
@@ -514,33 +519,46 @@ ${t.description || '该话题正在持续发酵中，引发广泛关注。'}
 }
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get('action');
 
-  if (action === 'list') {
-    const rewrites = await db().select()
-      .from(articleRewrites)
-      .orderBy(articleRewrites.createdAt);
-    
-    return NextResponse.json({ success: true, rewrites });
-  }
-
-  if (action === 'get') {
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    if (action === 'list') {
+      const rewrites = await db().select()
+        .from(articleRewrites)
+        .orderBy(articleRewrites.createdAt);
+      
+      return NextResponse.json({ success: true, rewrites });
     }
 
-    const [rewrite] = await db().select()
-      .from(articleRewrites)
-      .where(eq(articleRewrites.id, parseInt(id)));
-    
-    if (!rewrite) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (action === 'get') {
+      const id = searchParams.get('id');
+      if (!id) {
+        return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
+      }
+
+      const parsedId = parseInt(id, 10);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 });
+      }
+
+      const [rewrite] = await db().select()
+        .from(articleRewrites)
+        .where(eq(articleRewrites.id, parsedId));
+      
+      if (!rewrite) {
+        return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, rewrite });
     }
 
-    return NextResponse.json({ success: true, rewrite });
+    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Rewrite API GET error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : '获取数据失败' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }

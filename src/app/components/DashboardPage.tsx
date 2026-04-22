@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 
-function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard') => void }) {
+function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard' | 'ipPlan') => void }) {
   const [stats, setStats] = useState({
     totalArticles: 0,
     publishedArticles: 0,
@@ -11,37 +11,43 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
   });
 
   useEffect(() => {
-    loadStats();
+    const controller = new AbortController();
+    loadStats(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  const loadStats = async () => {
+  const loadStats = async (signal?: AbortSignal) => {
     try {
       const [articlesRes, analysisRes] = await Promise.all([
-        fetch('/api/published-articles'),
-        fetch('/api/analysis'),
+        fetch('/api/published-articles', { signal }),
+        fetch('/api/analysis', { signal }),
       ]);
-      const articlesData = await articlesRes.json();
-      const analysisData = await analysisRes.json();
+      const articlesResult = await articlesRes.json();
+      const analysisResult = await analysisRes.json();
 
-      const published = Array.isArray(articlesData) ? articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'published').length : 0;
-      const drafts = Array.isArray(articlesData) ? articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'draft').length : 0;
+      const articlesData = articlesResult.success ? articlesResult.data : (Array.isArray(articlesResult) ? articlesResult : []);
+      const analysisData = Array.isArray(analysisResult) ? analysisResult : [];
+
+      const published = articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'published').length;
+      const drafts = articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'draft').length;
 
       setStats({
-        totalArticles: Array.isArray(articlesData) ? articlesData.length : 0,
+        totalArticles: articlesData.length,
         publishedArticles: published,
         pendingDrafts: drafts,
-        analysisTasks: Array.isArray(analysisData) ? analysisData.length : 0,
+        analysisTasks: analysisData.length,
       });
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
   };
 
-  const quickActions: Array<{ icon: string; title: string; desc: string; tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard' }> = [
+  const quickActions: Array<{ icon: string; title: string; desc: string; tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard' | 'ipPlan' }> = [
     { icon: '📥', title: '文章采集', desc: '采集公众号文章', tab: 'wechatCollect' },
     { icon: '🔍', title: '公众号采集', desc: '搜索公众号与订阅', tab: 'wechatAccount' },
     { icon: '📊', title: '选题分析', desc: '选题评估与分析', tab: 'topicAnalysis' },
     { icon: '✍️', title: '创作工作台', desc: 'AI一键创作文章', tab: 'create' },
+    { icon: '🎯', title: 'IP方案', desc: '5步打造公众号IP', tab: 'ipPlan' },
   ];
 
   return (
@@ -55,20 +61,20 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+      <div style={styles.statsGrid}>
+        <div style={styles.statCard}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>总文章数</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#1f2937' }}>{stats.totalArticles}</div>
         </div>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+        <div style={styles.statCard}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>已发布</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>{stats.publishedArticles}</div>
         </div>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+        <div style={styles.statCard}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>草稿箱</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>{stats.pendingDrafts}</div>
         </div>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+        <div style={styles.statCard}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>分析任务</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#E8652D' }}>{stats.analysisTasks}</div>
         </div>
@@ -76,18 +82,11 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
 
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>快速入口</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        <div style={styles.quickActionsGrid}>
           {quickActions.map((action, i) => (
             <div
               key={i}
-              style={{
-                backgroundColor: '#fff',
-                borderRadius: '12px',
-                padding: '24px',
-                border: '1px solid #e5e7eb',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
+              style={styles.quickActionCard}
               onClick={() => setActiveTab(action.tab)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#E8652D';
@@ -106,8 +105,8 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+      <div style={styles.bottomGrid}>
+        <div style={styles.bottomCard}>
           <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>📈 工作流程</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
@@ -138,7 +137,7 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e7eb' }}>
+        <div style={styles.bottomCard}>
           <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>💡 使用技巧</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
@@ -158,5 +157,44 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '16px',
+    marginBottom: '32px',
+  },
+  statCard: {
+    backgroundColor: '#fff',
+    borderRadius: '12px',
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+  },
+  quickActionsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '16px',
+  },
+  quickActionCard: {
+    backgroundColor: '#fff',
+    borderRadius: '12px',
+    padding: '24px',
+    border: '1px solid #e5e7eb',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  bottomGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '24px',
+  },
+  bottomCard: {
+    backgroundColor: '#fff',
+    borderRadius: '12px',
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+  },
+};
 
 export default DashboardPage;
