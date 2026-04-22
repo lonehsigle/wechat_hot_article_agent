@@ -45,13 +45,18 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
     cursor: 'pointer',
     fontSize: '13px',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
     marginBottom: '4px',
     whiteSpace: 'nowrap',
+    position: 'relative',
+    overflow: 'hidden',
   },
   tabItemActive: {
-    backgroundColor: 'rgba(232,101,45,0.2)',
-    color: '#60a5fa',
+    backgroundColor: 'rgba(232,101,45,0.15)',
+    color: '#E8652D',
+    fontWeight: 500,
+    position: 'relative',
+    boxShadow: 'inset 2px 0 0 #E8652D',
   },
   tabIcon: {
     fontSize: '16px',
@@ -1555,6 +1560,9 @@ const styles: Record<string, React.CSSProperties> = {
 export default styles;
 
 export const mobileStyles = `
+  /* ============================================
+     Sidebar & Layout (Mobile)
+     ============================================ */
   @media (max-width: 768px) {
     [data-mobile-sidebar] { display: none !important; }
     [data-mobile-header] { display: flex !important; }
@@ -1568,6 +1576,9 @@ export const mobileStyles = `
     }
     [data-mobile-grid] {
       grid-template-columns: 1fr !important;
+    }
+    [data-mobile-grid-2] {
+      grid-template-columns: repeat(2, 1fr) !important;
     }
     [data-mobile-flex-col] {
       flex-direction: column !important;
@@ -1590,6 +1601,62 @@ export const mobileStyles = `
     [data-mobile-gap-sm] {
       gap: 8px !important;
     }
+    [data-mobile-scroll-x] {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    [data-mobile-stack] {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+    [data-mobile-no-border-radius] {
+      border-radius: 0 !important;
+    }
+    [data-mobile-no-margin] {
+      margin: 0 !important;
+    }
+    [data-mobile-compact] {
+      padding: 8px !important;
+      font-size: 12px !important;
+    }
+    [data-mobile-hero] {
+      flex-direction: column !important;
+      padding: 40px 20px !important;
+      gap: 32px !important;
+      min-height: auto !important;
+    }
+    [data-mobile-hero-title] {
+      font-size: 32px !important;
+    }
+    [data-mobile-preview] {
+      width: 100% !important;
+      max-width: 360px !important;
+      height: 240px !important;
+    }
+    [data-mobile-feature-grid] {
+      grid-template-columns: 1fr !important;
+    }
+    [data-mobile-about-grid] {
+      grid-template-columns: 1fr !important;
+    }
+    [data-mobile-stats-grid] {
+      gap: 32px !important;
+    }
+    [data-mobile-nav] {
+      padding: 12px 20px !important;
+    }
+    [data-mobile-nav-links] {
+      display: none !important;
+    }
+    [data-mobile-footer] {
+      flex-direction: column !important;
+      text-align: center !important;
+      gap: 12px !important;
+    }
+    [data-mobile-modal] {
+      width: 100% !important;
+      max-width: calc(100vw - 32px) !important;
+    }
   }
   
   @media (max-width: 480px) {
@@ -1603,5 +1670,101 @@ export const mobileStyles = `
     [data-mobile-font-xs] {
       font-size: 11px !important;
     }
+    [data-mobile-hero-title] {
+      font-size: 26px !important;
+    }
+    [data-mobile-feature-grid] {
+      grid-template-columns: 1fr !important;
+    }
+    [data-mobile-stats-grid] {
+      gap: 20px !important;
+    }
+    [data-mobile-stat-value] {
+      font-size: 32px !important;
+    }
+  }
+
+  /* ============================================
+     Sidebar Hover Effects (Global)
+     ============================================ */
+  [data-sidebar-item]:hover {
+    background-color: rgba(255,255,255,0.08) !important;
+    color: #e2e8f0 !important;
+  }
+  
+  [data-sidebar-item-active] {
+    background-color: rgba(232,101,45,0.15) !important;
+    color: #E8652D !important;
+    font-weight: 500 !important;
+    box-shadow: inset 2px 0 0 #E8652D !important;
+  }
+  
+  /* Smooth sidebar collapse */
+  [data-sidebar] {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Main content margin transition */
+  [data-main-content] {
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ============================================
+     Form & Input Focus States
+     ============================================ */
+  [data-input]:focus {
+    border-color: #E8652D !important;
+    box-shadow: 0 0 0 3px rgba(232, 101, 45, 0.15) !important;
+    outline: none !important;
+  }
+  
+  [data-btn-primary]:hover {
+    background-color: #d4551f !important;
+    box-shadow: 0 4px 14px rgba(232, 101, 45, 0.35) !important;
+    transform: translateY(-1px) !important;
+  }
+  
+  [data-btn-primary]:active {
+    transform: translateY(0) !important;
+  }
+  
+  [data-btn-secondary]:hover {
+    border-color: #E8652D !important;
+    color: #E8652D !important;
+    background-color: #f5f6f8 !important;
+  }
+  
+  /* Card hover effects */
+  [data-card-hover]:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* ============================================
+     Scrollbar refinements for tables
+     ============================================ */
+  .table-scroll::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .table-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .table-scroll::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 2px;
+  }
+
+  /* ============================================
+     Quick action bar animation
+     ============================================ */
+  .quick-action-bar {
+    transition: width 0.3s ease, opacity 0.3s ease;
+  }
+  
+  [data-quick-card]:hover .quick-action-bar {
+    width: 100% !important;
+    opacity: 1 !important;
   }
 `;

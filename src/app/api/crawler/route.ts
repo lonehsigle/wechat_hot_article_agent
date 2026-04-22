@@ -210,26 +210,60 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
     startedAt: new Date(),
   }).returning();
 
-  let posts;
+  let posts: Array<{
+    platform: string;
+    postId: string;
+    title: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar: string;
+    coverImage: string;
+    images: string[];
+    likeCount: number;
+    commentCount: number;
+    shareCount: number;
+    collectCount: number;
+    viewCount: number;
+    tags: string[];
+    category: string;
+  }> = [];
   let isRealData = false;
 
   if (cookie && cookie.trim()) {
-    // 有Cookie时，通用爬虫功能暂未实现
-    await db().update(crawlTasks)
-      .set({
-        status: 'failed',
-        completedAt: new Date(),
-      })
-      .where(eq(crawlTasks.id, task.id));
+    // TODO: 通用爬虫功能需要部署专用爬虫服务
+    // 当前尝试直接请求目标平台的搜索接口（大概率会被反爬阻止）
+    let attemptedRealFetch = false;
+    try {
+      const realPosts = await attemptRealCrawl(platform, keyword, limit, cookie);
+      if (realPosts && realPosts.length > 0) {
+        posts = realPosts;
+        isRealData = true;
+        attemptedRealFetch = true;
+      }
+    } catch (error) {
+      console.warn(`[crawler] 真实爬取失败 (${platform}):`, error);
+    }
 
-    return NextResponse.json({
-      success: false,
-      taskId: task.id,
-      error: '通用爬虫功能暂未实现，请使用微信文章采集或Deep-fetch功能',
-      posts: [],
-      total: 0,
-      isRealData: false,
-    });
+    if (!attemptedRealFetch) {
+      // 标记任务为需要爬虫服务
+      await db().update(crawlTasks)
+        .set({
+          status: 'failed',
+          errorMessage: '目标平台反爬验证阻止了直接请求，需要部署专用爬虫服务',
+          completedAt: new Date(),
+        })
+        .where(eq(crawlTasks.id, task.id));
+
+      return NextResponse.json({
+        success: false,
+        taskId: task.id,
+        error: '真实爬取被目标平台阻止。请部署专用爬虫服务，或使用无 Cookie 的演示数据模式',
+        posts: [],
+        total: 0,
+        isRealData: false,
+      });
+    }
   } else {
     // 无Cookie时，返回Mock演示数据
     isRealData = false;
@@ -534,6 +568,107 @@ async function batchCrawl(platform: string, keywords: string[], postIds: string[
   }
 
   return NextResponse.json({ success: true, results });
+}
+
+/**
+ * 尝试真实爬取目标平台内容
+ * TODO: 当前为简化实现，各平台需要专门的爬虫策略和代理池
+ */
+async function attemptRealCrawl(
+  platform: string,
+  keyword: string,
+  limit: number,
+  cookie: string
+): Promise<Array<{
+  platform: string;
+  postId: string;
+  title: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  coverImage: string;
+  images: string[];
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  collectCount: number;
+  viewCount: number;
+  tags: string[];
+  category: string;
+}> | null> {
+  const headers: Record<string, string> = {
+    'Cookie': cookie,
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Referer': getPlatformReferer(platform),
+  };
+
+  // 各平台需要专门的爬虫服务，直接请求大概率会被阻止
+  // 这里预留扩展接口，后续可接入 Playwright / Puppeteer 爬虫服务
+  switch (platform) {
+    case 'weibo': {
+      // 微博搜索接口示例（需要有效 Cookie）
+      try {
+        const res = await fetch(
+          `https://m.weibo.cn/api/container/getIndex?containerid=100103type%3D1%26q%3D${encodeURIComponent(keyword)}&page_type=searchall`,
+          { headers, signal: AbortSignal.timeout(15000) }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data?.cards) {
+            return data.data.cards
+              .filter((card: Record<string, unknown>) => card.mblog)
+              .slice(0, limit)
+              .map((card: Record<string, unknown>, i: number) => {
+                const mblog = card.mblog as Record<string, unknown>;
+                const user = (mblog.user as Record<string, unknown> | undefined) || {};
+                const pics = (mblog.pics as Array<Record<string, unknown>> | undefined) || [];
+                return {
+                  platform,
+                  postId: String(mblog.id || `weibo_${i}`),
+                  title: String(mblog.text || '').substring(0, 50),
+                  content: String(mblog.text || ''),
+                  authorId: String(user.id || ''),
+                  authorName: String(user.screen_name || '未知用户'),
+                  authorAvatar: String(user.profile_image_url || ''),
+                  coverImage: String((pics[0]?.large as Record<string, unknown>)?.url || pics[0]?.url || ''),
+                  images: pics.map((p: Record<string, unknown>) => String((p.large as Record<string, unknown>)?.url || p.url || '')),
+                  likeCount: Number(mblog.attitudes_count || 0),
+                  commentCount: Number(mblog.comments_count || 0),
+                  shareCount: Number(mblog.reposts_count || 0),
+                  collectCount: 0,
+                  viewCount: Number(mblog.readt_count || 0),
+                  tags: [keyword, '微博'],
+                  category: '搜索',
+                };
+              });
+          }
+        }
+      } catch { /* 微博搜索失败，返回 null */ }
+      break;
+    }
+    // case 'xiaohongshu': // 需要专用爬虫服务
+    // case 'douyin': // 需要专用爬虫服务
+    default:
+      break;
+  }
+
+  return null;
+}
+
+function getPlatformReferer(platform: string): string {
+  const referers: Record<string, string> = {
+    xiaohongshu: 'https://www.xiaohongshu.com/',
+    douyin: 'https://www.douyin.com/',
+    kuaishou: 'https://www.kuaishou.com/',
+    bilibili: 'https://search.bilibili.com/',
+    weibo: 'https://weibo.com/',
+    tieba: 'https://tieba.baidu.com/',
+    zhihu: 'https://www.zhihu.com/',
+  };
+  return referers[platform] || 'https://www.google.com/';
 }
 
 function generateMockSearchResults(platform: string, keyword: string, limit: number) {

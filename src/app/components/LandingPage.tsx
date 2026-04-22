@@ -61,9 +61,24 @@ export default function LandingPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    if (!formData.username.trim()) errors.username = '请输入用户名';
+    if (loginMode === 'register' && !formData.email.trim()) errors.email = '请输入邮箱';
+    if (loginMode === 'register' && formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = '请输入有效的邮箱地址';
+    }
+    if (!formData.password.trim()) errors.password = '请输入密码';
+    if (formData.password.trim() && formData.password.length < 6) errors.password = '密码至少6位';
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
     setLoading(true);
     setError('');
 
@@ -94,8 +109,12 @@ export default function LandingPage() {
     }
   };
 
+  const scrollToFeatures = () => {
+    document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <div style={styles.container}>
+    <div className="landing-page" style={styles.container}>
       <nav style={styles.nav}>
         <div style={styles.logo}>
           <span style={styles.logoIcon}>📊</span>
@@ -105,19 +124,25 @@ export default function LandingPage() {
           <a href="#features" style={styles.navLink}>功能特性</a>
           <a href="#about" style={styles.navLink}>关于我们</a>
           <button 
-            style={styles.loginBtn}
+            className="btn-ghost"
+            style={{ ...styles.loginBtn, ...styles.btnGhostOverride }}
             onClick={() => {
               setShowLogin(true);
               setLoginMode('login');
+              setFieldErrors({});
+              setError('');
             }}
           >
             登录
           </button>
           <button 
-            style={styles.registerBtn}
+            className="btn-primary"
+            style={{ ...styles.registerBtn, ...styles.btnPrimaryOverride }}
             onClick={() => {
               setShowLogin(true);
               setLoginMode('register');
+              setFieldErrors({});
+              setError('');
             }}
           >
             免费注册
@@ -125,7 +150,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      <section style={styles.hero}>
+      <section className="hero-gradient" style={styles.hero}>
         <div style={styles.heroContent}>
           <h1 style={styles.heroTitle}>
             智能内容创作平台
@@ -139,21 +164,28 @@ export default function LandingPage() {
           </p>
           <div style={styles.heroActions}>
             <button 
-              style={styles.primaryBtn}
+              className="btn-primary cta-pulse"
+              style={{ ...styles.primaryBtn, ...styles.btnPrimaryOverride }}
               onClick={() => {
                 setShowLogin(true);
                 setLoginMode('register');
+                setFieldErrors({});
+                setError('');
               }}
             >
               立即开始使用
             </button>
-            <button style={styles.secondaryBtn}>
+            <button 
+              className="btn-secondary"
+              style={{ ...styles.secondaryBtn, ...styles.btnSecondaryOverride }}
+              onClick={scrollToFeatures}
+            >
               了解更多
             </button>
           </div>
         </div>
         <div style={styles.heroImage}>
-          <div style={styles.previewCard}>
+          <div className="animate-float" style={styles.previewCard}>
             <div style={styles.previewHeader}>
               <span style={styles.previewDot} />
               <span style={{ ...styles.previewDot, backgroundColor: '#fbbf24' }} />
@@ -183,9 +215,13 @@ export default function LandingPage() {
       <section id="features" style={styles.features}>
         <h2 style={styles.sectionTitle}>核心功能</h2>
         <p style={styles.sectionDesc}>全方位满足内容创作需求</p>
-        <div style={styles.featureGrid}>
+        <div className="feature-grid" style={styles.featureGrid}>
           {features.map((feature, index) => (
-            <div key={index} style={styles.featureCard}>
+            <div 
+              key={index} 
+              className="card card-hover feature-lift"
+              style={{ ...styles.featureCard, animationDelay: `${index * 0.1}s` }}
+            >
               <div style={{ 
                 ...styles.featureIcon, 
                 backgroundColor: `${feature.color}15`,
@@ -203,7 +239,7 @@ export default function LandingPage() {
       <section style={styles.stats}>
         <div style={styles.statsGrid}>
           {stats.map((stat, index) => (
-            <div key={index} style={styles.statItem}>
+            <div key={index} className="stat-animate" style={{ ...styles.statItem, animationDelay: `${index * 0.15}s` }}>
               <div style={styles.statValue}>{stat.value}</div>
               <div style={styles.statLabel}>{stat.label}</div>
             </div>
@@ -213,22 +249,22 @@ export default function LandingPage() {
 
       <section id="about" style={styles.about}>
         <h2 style={styles.sectionTitle}>为什么选择我们</h2>
-        <div style={styles.aboutGrid}>
-          <div style={styles.aboutCard}>
+        <div className="about-grid" style={styles.aboutGrid}>
+          <div className="card card-hover" style={styles.aboutCard}>
             <div style={styles.aboutIcon}>🎯</div>
             <h3 style={styles.aboutTitle}>精准选题</h3>
             <p style={styles.aboutDesc}>
               AI智能分析热点趋势，精准推荐高潜力选题方向
             </p>
           </div>
-          <div style={styles.aboutCard}>
+          <div className="card card-hover" style={styles.aboutCard}>
             <div style={styles.aboutIcon}>⚡</div>
             <h3 style={styles.aboutTitle}>高效创作</h3>
             <p style={styles.aboutDesc}>
               一键生成高质量文章，大幅提升创作效率
             </p>
           </div>
-          <div style={styles.aboutCard}>
+          <div className="card card-hover" style={styles.aboutCard}>
             <div style={styles.aboutIcon}>📈</div>
             <h3 style={styles.aboutTitle}>数据驱动</h3>
             <p style={styles.aboutDesc}>
@@ -242,10 +278,13 @@ export default function LandingPage() {
         <h2 style={styles.ctaTitle}>开始您的内容创作之旅</h2>
         <p style={styles.ctaDesc}>免费注册，立即体验智能创作</p>
         <button 
-          style={styles.ctaBtn}
+          className="btn-primary cta-pulse"
+          style={{ ...styles.ctaBtn, ...styles.btnPrimaryOverride, padding: '16px 48px', fontSize: '18px' }}
           onClick={() => {
             setShowLogin(true);
             setLoginMode('register');
+            setFieldErrors({});
+            setError('');
           }}
         >
           免费注册
@@ -285,48 +324,73 @@ export default function LandingPage() {
             </div>
             <form onSubmit={handleSubmit} style={styles.modalBody}>
               {error && (
-                <div style={styles.errorMsg}>{error}</div>
+                <div className="animate-slide-in-up" style={styles.errorMsg}>{error}</div>
               )}
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>用户名</label>
                 <input
                   type="text"
-                  style={styles.formInput}
+                  className={fieldErrors.username ? 'input input-error' : 'input'}
+                  style={{ ...styles.formInput, ...(fieldErrors.username ? styles.inputError : {}) }}
                   value={formData.username}
-                  onChange={e => setFormData({ ...formData, username: e.target.value })}
+                  onChange={e => {
+                    setFormData({ ...formData, username: e.target.value });
+                    if (fieldErrors.username) {
+                      setFieldErrors(prev => { const n = { ...prev }; delete n.username; return n; });
+                    }
+                  }}
                   placeholder="请输入用户名"
-                  required
                 />
+                {fieldErrors.username && (
+                  <div style={styles.fieldError}>{fieldErrors.username}</div>
+                )}
               </div>
               {loginMode === 'register' && (
                 <div style={styles.formGroup}>
                   <label style={styles.formLabel}>邮箱</label>
                   <input
                     type="email"
-                    style={styles.formInput}
+                    className={fieldErrors.email ? 'input input-error' : 'input'}
+                    style={{ ...styles.formInput, ...(fieldErrors.email ? styles.inputError : {}) }}
                     value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    onChange={e => {
+                      setFormData({ ...formData, email: e.target.value });
+                      if (fieldErrors.email) {
+                        setFieldErrors(prev => { const n = { ...prev }; delete n.email; return n; });
+                      }
+                    }}
                     placeholder="请输入邮箱"
-                    required
                   />
+                  {fieldErrors.email && (
+                    <div style={styles.fieldError}>{fieldErrors.email}</div>
+                  )}
                 </div>
               )}
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>密码</label>
                 <input
                   type="password"
-                  style={styles.formInput}
+                  className={fieldErrors.password ? 'input input-error' : 'input'}
+                  style={{ ...styles.formInput, ...(fieldErrors.password ? styles.inputError : {}) }}
                   value={formData.password}
-                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  onChange={e => {
+                    setFormData({ ...formData, password: e.target.value });
+                    if (fieldErrors.password) {
+                      setFieldErrors(prev => { const n = { ...prev }; delete n.password; return n; });
+                    }
+                  }}
                   placeholder="请输入密码"
-                  required
                 />
+                {fieldErrors.password && (
+                  <div style={styles.fieldError}>{fieldErrors.password}</div>
+                )}
               </div>
               {loginMode === 'register' && (
                 <div style={styles.formGroup}>
                   <label style={styles.formLabel}>昵称（可选）</label>
                   <input
                     type="text"
+                    className="input"
                     style={styles.formInput}
                     value={formData.displayName}
                     onChange={e => setFormData({ ...formData, displayName: e.target.value })}
@@ -336,6 +400,7 @@ export default function LandingPage() {
               )}
               <button 
                 type="submit" 
+                className="btn-primary"
                 style={{ ...styles.submitBtn, opacity: loading ? 0.7 : 1 }}
                 disabled={loading}
               >
@@ -351,6 +416,7 @@ export default function LandingPage() {
                       onClick={() => {
                         setLoginMode('register');
                         setError('');
+                        setFieldErrors({});
                         setFormData({
                           username: '',
                           email: '',
@@ -371,6 +437,7 @@ export default function LandingPage() {
                       onClick={() => {
                         setLoginMode('login');
                         setError('');
+                        setFieldErrors({});
                         setFormData({
                           username: '',
                           email: '',
@@ -392,11 +459,12 @@ export default function LandingPage() {
   );
 }
 
+/* CSS overrides for class compatibility */
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
     backgroundColor: '#ffffff',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
   },
   nav: {
     display: 'flex',
@@ -406,7 +474,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #f3f4f6',
     position: 'sticky',
     top: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#ffffffee',
+    backdropFilter: 'blur(12px)',
     zIndex: 100,
   },
   logo: {
@@ -419,7 +488,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logoText: {
     fontSize: '20px',
-    fontWeight: '600',
+    fontWeight: 600,
     color: '#1f2937',
   },
   navLinks: {
@@ -431,28 +500,34 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6b7280',
     textDecoration: 'none',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
     transition: 'color 0.2s',
+  },
+  btnPrimaryOverride: {
+    borderRadius: '8px',
+    fontWeight: 600,
+  },
+  btnSecondaryOverride: {
+    borderRadius: '8px',
+    fontWeight: 600,
+    border: '2px solid #e5e7eb',
+    backgroundColor: 'transparent',
+    color: '#374151',
+  },
+  btnGhostOverride: {
+    borderRadius: '8px',
+    fontWeight: 500,
+    border: '1px solid #d1d5db',
+    backgroundColor: 'transparent',
+    color: '#374151',
   },
   loginBtn: {
     padding: '8px 16px',
-    backgroundColor: 'transparent',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#374151',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   registerBtn: {
     padding: '8px 16px',
-    backgroundColor: '#E8652D',
-    border: 'none',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#ffffff',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -464,15 +539,16 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '1280px',
     margin: '0 auto',
     gap: '64px',
+    minHeight: '70vh',
   },
   heroContent: {
     flex: 1,
   },
   heroTitle: {
     fontSize: '48px',
-    fontWeight: '700',
+    fontWeight: 700,
     color: '#1f2937',
-    lineHeight: '1.2',
+    lineHeight: 1.2,
     marginBottom: '24px',
   },
   heroHighlight: {
@@ -483,32 +559,24 @@ const styles: Record<string, React.CSSProperties> = {
   heroDesc: {
     fontSize: '18px',
     color: '#6b7280',
-    lineHeight: '1.8',
+    lineHeight: 1.8,
     marginBottom: '32px',
   },
   heroActions: {
     display: 'flex',
     gap: '16px',
+    flexWrap: 'wrap',
   },
   primaryBtn: {
     padding: '14px 32px',
-    backgroundColor: '#E8652D',
     border: 'none',
-    borderRadius: '8px',
     fontSize: '16px',
-    fontWeight: '600',
-    color: '#ffffff',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   secondaryBtn: {
     padding: '14px 32px',
-    backgroundColor: 'transparent',
-    border: '2px solid #e5e7eb',
-    borderRadius: '8px',
     fontSize: '16px',
-    fontWeight: '600',
-    color: '#374151',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -594,7 +662,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionTitle: {
     fontSize: '36px',
-    fontWeight: '700',
+    fontWeight: 700,
     color: '#1f2937',
     textAlign: 'center',
     marginBottom: '12px',
@@ -607,7 +675,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   featureGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
     gap: '24px',
     maxWidth: '1200px',
     margin: '0 auto',
@@ -617,7 +685,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '12px',
     padding: '32px',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-    transition: 'all 0.3s',
+    cursor: 'pointer',
   },
   featureIcon: {
     width: '56px',
@@ -631,14 +699,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   featureTitle: {
     fontSize: '20px',
-    fontWeight: '600',
+    fontWeight: 600,
     color: '#1f2937',
     marginBottom: '12px',
   },
   featureDesc: {
     fontSize: '14px',
     color: '#6b7280',
-    lineHeight: '1.6',
+    lineHeight: 1.6,
   },
   stats: {
     padding: '64px 48px',
@@ -650,13 +718,14 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '96px',
     maxWidth: '1200px',
     margin: '0 auto',
+    flexWrap: 'wrap',
   },
   statItem: {
     textAlign: 'center',
   },
   statValue: {
     fontSize: '48px',
-    fontWeight: '700',
+    fontWeight: 700,
     color: '#ffffff',
     marginBottom: '8px',
   },
@@ -671,7 +740,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   aboutGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
     gap: '32px',
   },
   aboutCard: {
@@ -684,14 +753,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   aboutTitle: {
     fontSize: '20px',
-    fontWeight: '600',
+    fontWeight: 600,
     color: '#1f2937',
     marginBottom: '12px',
   },
   aboutDesc: {
     fontSize: '14px',
     color: '#6b7280',
-    lineHeight: '1.6',
+    lineHeight: 1.6,
   },
   cta: {
     padding: '80px 48px',
@@ -700,7 +769,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   ctaTitle: {
     fontSize: '36px',
-    fontWeight: '700',
+    fontWeight: 700,
     color: '#1f2937',
     marginBottom: '16px',
   },
@@ -710,13 +779,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '32px',
   },
   ctaBtn: {
-    padding: '16px 48px',
-    backgroundColor: '#E8652D',
     border: 'none',
-    borderRadius: '8px',
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#ffffff',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -731,13 +794,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '16px',
   },
   footerBrand: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
     fontSize: '18px',
-    fontWeight: '600',
+    fontWeight: 600,
   },
   footerLogo: {
     fontSize: '24px',
@@ -745,6 +810,7 @@ const styles: Record<string, React.CSSProperties> = {
   footerLinks: {
     display: 'flex',
     gap: '32px',
+    flexWrap: 'wrap',
   },
   footerLink: {
     color: 'rgba(255, 255, 255, 0.7)',
@@ -767,13 +833,15 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
+    padding: '16px',
   },
   modal: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
-    width: '400px',
-    maxWidth: '90vw',
+    width: '420px',
+    maxWidth: '100%',
     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    overflow: 'hidden',
   },
   modalHeader: {
     display: 'flex',
@@ -783,7 +851,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalTitle: {
     fontSize: '24px',
-    fontWeight: '600',
+    fontWeight: 600,
     color: '#1f2937',
   },
   modalClose: {
@@ -793,6 +861,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#9ca3af',
     cursor: 'pointer',
     lineHeight: 1,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    transition: 'all 0.2s',
   },
   modalBody: {
     padding: '24px',
@@ -803,7 +878,7 @@ const styles: Record<string, React.CSSProperties> = {
   formLabel: {
     display: 'block',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
     color: '#374151',
     marginBottom: '8px',
   },
@@ -813,20 +888,29 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #d1d5db',
     borderRadius: '8px',
     fontSize: '14px',
-    transition: 'border-color 0.2s',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
     boxSizing: 'border-box',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.1)',
+  },
+  fieldError: {
+    fontSize: '13px',
+    color: '#ef4444',
+    marginTop: '6px',
   },
   submitBtn: {
     width: '100%',
     padding: '14px',
-    backgroundColor: '#E8652D',
     border: 'none',
     borderRadius: '8px',
     fontSize: '16px',
-    fontWeight: '600',
+    fontWeight: 600,
     color: '#ffffff',
     cursor: 'pointer',
     marginBottom: '16px',
+    transition: 'all 0.2s',
   },
   switchMode: {
     textAlign: 'center',
@@ -838,9 +922,10 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     color: '#E8652D',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
     cursor: 'pointer',
     marginLeft: '4px',
+    transition: 'color 0.2s',
   },
   errorMsg: {
     padding: '12px',

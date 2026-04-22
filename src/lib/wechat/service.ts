@@ -1,6 +1,6 @@
 import { db } from '../db';
-import { wechatAccounts } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { wechatAccounts, publishedArticles, articleStats } from '../db/schema';
+import { eq, desc, inArray } from 'drizzle-orm';
 
 interface WechatAccountConfig {
   id: number;
@@ -86,10 +86,51 @@ const IMAGE_MIME_MAP: Record<string, string> = {
   'avif': 'image/avif',
 };
 
-// 根据文件名推断MIME类型
-function guessMimeType(filename: string): string | undefined {
+// 根据文件头推断 MIME 类型的辅助函数
+function detectMimeByHeader(buffer: Buffer): string | undefined {
+  if (buffer.length < 4) return undefined;
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    return 'image/png';
+  }
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'image/jpeg';
+  }
+  // GIF: 47 49 46
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+    return 'image/gif';
+  }
+  // WEBP: 52 49 46 46 ... 57 45 42 50
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return undefined;
+}
+
+// 根据文件名和文件头综合推断 MIME 类型（增强版）
+export function guessMimeType(filename: string, buffer?: Buffer): string | undefined {
+  // 1. 优先通过文件扩展名判断
   const ext = filename.split('.').pop()?.toLowerCase();
-  return ext ? IMAGE_MIME_MAP[ext] : undefined;
+  const mimeFromExt = ext ? IMAGE_MIME_MAP[ext] : undefined;
+
+  // 2. 如果有 buffer，通过文件头验证
+  if (buffer && buffer.length >= 4) {
+    const mimeFromHeader = detectMimeByHeader(buffer);
+    // 如果扩展名和文件头都匹配到，优先使用文件头（更准确）
+    if (mimeFromHeader) {
+      // 扩展名判断为 webp 但文件头是其他类型时，以文件头为准
+      return mimeFromHeader;
+    }
+    // 文件头无法识别但有扩展名，返回扩展名推断结果
+    return mimeFromExt;
+  }
+
+  return mimeFromExt;
 }
 
 // 根据MIME类型推断文件扩展名
@@ -316,6 +357,148 @@ export async function getArticleStats(
     commentCount: article.comment_count || 0,
     shareCount: article.share_num || 0,
   };
+}
+
+export interface SyncStatsResult {
+  success: boolean;
+  synced: number;
+  failed: number;
+  skipped: number;
+  error?: string;
+  details: Array<{
+    articleId: number;
+    msgDataId: string;
+    status: 'synced' | 'failed' | 'skipped';
+    error?: string;
+    readCount?: number;
+    likeCount?: number;
+  }>;
+}
+
+/**
+ * 批量同步所有已发布文章的统计数据
+ * @param options.articleIds 可选，只同步指定文章ID列表
+ * @param options.force 是否强制同步（忽略30分钟检查）
+ */
+export async function syncAllArticleStats(options?: {
+  articleIds?: number[];
+  force?: boolean;
+}): Promise<SyncStatsResult> {
+  const database = db();
+  const result: SyncStatsResult = {
+    success: true,
+    synced: 0,
+    failed: 0,
+    skipped: 0,
+    details: [],
+  };
+
+  try {
+    // 查询需要同步的文章：已发布且有 msgDataId 的文章
+    let articlesQuery = database
+      .select()
+      .from(publishedArticles)
+      .where(eq(publishedArticles.publishStatus, 'published'));
+
+    if (options?.articleIds && options.articleIds.length > 0) {
+      articlesQuery = database
+        .select()
+        .from(publishedArticles)
+        .where(inArray(publishedArticles.id, options.articleIds));
+    }
+
+    const articles = await articlesQuery;
+
+    if (articles.length === 0) {
+      return result;
+    }
+
+    // 检查最近一次同步时间，如果30分钟内已同步则跳过（除非force=true）
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    let articlesToSync = articles;
+
+    if (!options?.force) {
+      const latestStats = await database
+        .select()
+        .from(articleStats)
+        .orderBy(desc(articleStats.recordTime))
+        .limit(1);
+
+      if (latestStats.length > 0 && latestStats[0].recordTime >= thirtyMinutesAgo) {
+        // 已存在30分钟内的同步记录，仅同步没有统计记录的文章
+        const existingStatArticleIds = await database
+          .select({ articleId: articleStats.articleId })
+          .from(articleStats);
+
+        const existingIds = new Set(existingStatArticleIds.map(s => s.articleId));
+        articlesToSync = articles.filter(a => !existingIds.has(a.id));
+        result.skipped = articles.length - articlesToSync.length;
+      }
+    }
+
+    for (const article of articlesToSync) {
+      if (!article.wechatAccountId || !article.wechatMediaId) {
+        result.skipped += 1;
+        result.details.push({
+          articleId: article.id,
+          msgDataId: article.wechatMediaId || '',
+          status: 'skipped',
+          error: 'Missing wechatAccountId or wechatMediaId',
+        });
+        continue;
+      }
+
+      try {
+        const stats = await getArticleStats(article.wechatAccountId, article.wechatMediaId);
+
+        await database.insert(articleStats).values({
+          articleId: article.id,
+          recordTime: new Date(),
+          readCount: stats.readCount,
+          likeCount: stats.likeCount,
+          commentCount: stats.commentCount,
+          shareCount: stats.shareCount,
+        });
+
+        // 同时更新 publishedArticles 表中的最新统计
+        await database
+          .update(publishedArticles)
+          .set({
+            readCount: stats.readCount,
+            likeCount: stats.likeCount,
+            commentCount: stats.commentCount,
+            shareCount: stats.shareCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(publishedArticles.id, article.id));
+
+        result.synced += 1;
+        result.details.push({
+          articleId: article.id,
+          msgDataId: article.wechatMediaId,
+          status: 'synced',
+          readCount: stats.readCount,
+          likeCount: stats.likeCount,
+        });
+      } catch (error) {
+        result.failed += 1;
+        result.details.push({
+          articleId: article.id,
+          msgDataId: article.wechatMediaId || '',
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        console.error(`[syncAllArticleStats] Failed to sync article ${article.id}:`, error);
+      }
+    }
+
+    return result;
+  } catch (error) {
+    result.success = false;
+    result.error = error instanceof Error ? error.message : String(error);
+    console.error('[syncAllArticleStats] Error:', error);
+    return result;
+  }
 }
 
 export interface LayoutStyleConfig {

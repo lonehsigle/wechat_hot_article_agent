@@ -172,8 +172,9 @@ export async function setDefaultWechatAccount(id: number) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await database.update(wechatAccounts).set({ isDefault: false });
-    await database.update(wechatAccounts).set({ isDefault: true, updatedAt: new Date() }).where(eq(wechatAccounts.id, id));
+    // 修复：添加 WHERE 子句，只更新非目标账号
+    await client.query('UPDATE wechat_accounts SET is_default = false WHERE id != $1', [id]);
+    await client.query('UPDATE wechat_accounts SET is_default = true, updated_at = NOW() WHERE id = $1', [id]);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -208,7 +209,7 @@ export async function saveLLMConfig(data: { provider: string; apiKey?: string; m
   const existing = await getLLMConfig();
   const now = new Date();
 
-  const updateData: Record<string, any> = {
+  const updateData: Record<string, string | number | boolean | Date | null> = {
     provider: data.provider,
     model: data.model,
     baseUrl: data.baseUrl ?? null,

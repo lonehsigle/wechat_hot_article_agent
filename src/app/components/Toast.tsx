@@ -45,8 +45,13 @@ export function ToastProvider({ children }: ToastProviderProps) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       <div style={styles.container}>
-        {toasts.map(toast => (
-          <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
+        {toasts.map((toast, index) => (
+          <ToastItem 
+            key={toast.id} 
+            toast={toast} 
+            index={index}
+            onClose={() => removeToast(toast.id)} 
+          />
         ))}
       </div>
     </ToastContext.Provider>
@@ -55,34 +60,90 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
 interface ToastItemProps {
   toast: Toast;
+  index: number;
   onClose: () => void;
 }
 
-function ToastItem({ toast, onClose }: ToastItemProps) {
+function ToastItem({ toast, index, onClose }: ToastItemProps) {
+  const [isExiting, setIsExiting] = useState(false);
+  const [progress, setProgress] = useState(100);
+
   useEffect(() => {
-    const timer = setTimeout(onClose, toast.duration);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      setIsExiting(true);
+      setTimeout(onClose, 300);
+    }, toast.duration);
+
+    // Progress bar animation
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        const next = prev - (100 / (toast.duration / 50));
+        return next > 0 ? next : 0;
+      });
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(progressInterval);
+    };
   }, [toast.duration, onClose]);
 
-  const typeStyles = {
-    success: { backgroundColor: '#10b981', borderColor: '#059669' },
-    error: { backgroundColor: '#ef4444', borderColor: '#dc2626' },
-    warning: { backgroundColor: '#f59e0b', borderColor: '#d97706' },
-    info: { backgroundColor: '#3b82f6', borderColor: '#2563eb' },
+  const handleClose = () => {
+    setIsExiting(true);
+    setTimeout(onClose, 300);
   };
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ',
+  const typeConfig = {
+    success: { 
+      backgroundColor: 'rgba(16, 185, 129, 0.95)', 
+      borderColor: '#059669',
+      iconColor: '#059669',
+      progressColor: '#059669',
+      icon: '✓',
+    },
+    error: { 
+      backgroundColor: 'rgba(239, 68, 68, 0.95)', 
+      borderColor: '#dc2626',
+      iconColor: '#dc2626',
+      progressColor: '#dc2626',
+      icon: '✕',
+    },
+    warning: { 
+      backgroundColor: 'rgba(245, 158, 11, 0.95)', 
+      borderColor: '#d97706',
+      iconColor: '#d97706',
+      progressColor: '#d97706',
+      icon: '⚠',
+    },
+    info: { 
+      backgroundColor: 'rgba(59, 130, 246, 0.95)', 
+      borderColor: '#2563eb',
+      iconColor: '#2563eb',
+      progressColor: '#2563eb',
+      icon: 'ℹ',
+    },
   };
+
+  const config = typeConfig[toast.type];
 
   return (
-    <div style={{ ...styles.toast, ...typeStyles[toast.type] }}>
-      <span style={styles.icon}>{icons[toast.type]}</span>
+    <div 
+      style={{ 
+        ...styles.toast, 
+        ...styles[toast.type],
+        animation: isExiting ? 'slideOut 0.3s ease-in forwards' : `slideInRight 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s both`,
+        marginTop: index > 0 ? '10px' : '0',
+      }}
+    >
+      <span style={{ ...styles.icon, backgroundColor: config.iconColor + '30' }}>{config.icon}</span>
       <span style={styles.message}>{toast.message}</span>
-      <button onClick={onClose} style={styles.closeButton}>×</button>
+      <button onClick={handleClose} style={styles.closeButton}>×</button>
+      {/* Progress bar */}
+      <div style={{
+        ...styles.progressBar,
+        width: `${progress}%`,
+        backgroundColor: config.progressColor,
+      }} />
     </div>
   );
 }
@@ -95,38 +156,88 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 9999,
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
-    maxWidth: '400px',
+    alignItems: 'flex-end',
+    maxWidth: '420px',
+    width: 'calc(100vw - 40px)',
+    pointerEvents: 'none',
   },
   toast: {
+    pointerEvents: 'auto',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    padding: '12px 16px',
-    borderRadius: '8px',
+    gap: '12px',
+    padding: '14px 18px',
+    borderRadius: '12px',
     color: 'white',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.15)',
     borderLeft: '4px solid',
-    animation: 'slideIn 0.3s ease-out',
+    position: 'relative',
+    overflow: 'hidden',
+    backdropFilter: 'blur(12px)',
+    minWidth: '300px',
+    maxWidth: '400px',
+    transition: 'all 0.3s ease',
+  },
+  success: {
+    backgroundColor: 'rgba(16, 185, 129, 0.92)',
+    borderColor: '#059669',
+  },
+  error: {
+    backgroundColor: 'rgba(239, 68, 68, 0.92)',
+    borderColor: '#dc2626',
+  },
+  warning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.92)',
+    borderColor: '#d97706',
+  },
+  info: {
+    backgroundColor: 'rgba(59, 130, 246, 0.92)',
+    borderColor: '#2563eb',
   },
   icon: {
     fontSize: '16px',
     fontWeight: 'bold',
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    color: '#fff',
   },
   message: {
     flex: 1,
     fontSize: '14px',
-    lineHeight: '1.5',
+    lineHeight: 1.5,
+    fontWeight: 500,
+    wordBreak: 'break-word',
   },
   closeButton: {
     background: 'none',
     border: 'none',
     color: 'white',
-    fontSize: '18px',
+    fontSize: '22px',
     cursor: 'pointer',
-    padding: '0 4px',
+    padding: '0',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '6px',
     opacity: 0.7,
-    transition: 'opacity 0.2s',
+    transition: 'all 0.2s',
+    flexShrink: 0,
+    marginLeft: '4px',
+  },
+  progressBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    height: '3px',
+    borderRadius: '0 0 0 2px',
+    transition: 'width 0.05s linear',
   },
 };
 

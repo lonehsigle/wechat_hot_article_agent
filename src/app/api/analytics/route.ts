@@ -2,6 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { publishedArticles, articleStats, contents, monitorCategories } from '@/lib/db/schema';
 import { desc, gte, eq } from 'drizzle-orm';
+import { syncAllArticleStats } from '@/lib/wechat/service';
+
+// 自动同步锁，防止并发触发
+let autoSyncInProgress = false;
+
+async function maybeAutoSyncStats(): Promise<void> {
+  if (autoSyncInProgress) return;
+
+  try {
+    const database = db();
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    // 检查最近一次统计记录时间
+    const latestStats = await database
+      .select()
+      .from(articleStats)
+      .orderBy(desc(articleStats.recordTime))
+      .limit(1);
+
+    const needsSync =
+      latestStats.length === 0 ||
+      (latestStats[0].recordTime && latestStats[0].recordTime < thirtyMinutesAgo);
+
+    if (needsSync) {
+      autoSyncInProgress = true;
+      console.log('[analytics] Auto-syncing article stats (data older than 30min)');
+      const result = await syncAllArticleStats();
+      console.log(`[analytics] Auto-sync result: synced=${result.synced}, failed=${result.failed}, skipped=${result.skipped}`);
+    }
+  } catch (err) {
+    console.error('[analytics] Auto-sync failed:', err);
+  } finally {
+    autoSyncInProgress = false;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -9,6 +44,13 @@ export async function GET(request: NextRequest) {
 
   const database = db();
   
+  // 如果请求带 autoSync 参数或数据超过30分钟未更新，自动触发同步
+  const shouldAutoSync = searchParams.get('autoSync') !== 'false';
+  if (shouldAutoSync) {
+    // 使用 void 允许后台执行，不阻塞响应
+    void maybeAutoSyncStats();
+  }
+
   const now = new Date();
   let startDate: Date;
   switch (range) {
@@ -123,6 +165,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
+      success: true,
       totalArticles,
       totalReads,
       totalLikes,
@@ -134,6 +177,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Analytics error:', error);
     return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '获取统计数据失败',
       totalArticles: 0,
       totalReads: 0,
       totalLikes: 0,
@@ -141,6 +186,6 @@ export async function GET(request: NextRequest) {
       topArticles: [],
       weeklyTrend: [],
       categoryStats: [],
-    });
+    }, { status: 500 });
   }
 }

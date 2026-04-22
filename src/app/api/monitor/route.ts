@@ -141,18 +141,77 @@ async function getAlerts() {
   });
 }
 
+// 全局监控状态（注意：Next.js 热重载会重置此状态）
+let monitorTimer: ReturnType<typeof setInterval> | null = null;
+let monitorIntervalSeconds = 300;
+
 async function startMonitor(interval: number) {
+  monitorIntervalSeconds = interval;
+
+  // 清除已有的定时器
+  if (monitorTimer) {
+    clearInterval(monitorTimer);
+    monitorTimer = null;
+  }
+
   await logMonitorEvent('monitor_started', `监控已启动，间隔 ${interval} 秒`);
+
+  // TODO: 生产环境应使用独立的定时任务服务（如 node-cron / bullmq / systemd timer）
+  // 当前在 Next.js API Route 中使用 setInterval 仅用于演示，服务端部署后会话保持不可靠
+  monitorTimer = setInterval(async () => {
+    try {
+      await runMonitorCycle();
+    } catch (error) {
+      console.error('[monitor] 定时监控执行失败:', error);
+      await logMonitorEvent('monitor_error', error instanceof Error ? error.message : '定时监控执行失败');
+    }
+  }, interval * 1000);
 
   return NextResponse.json({
     success: true,
-    message: '热点自动监控功能暂未实现，请手动刷新获取最新热点',
+    message: `热点监控已启动（间隔 ${interval} 秒）。注意：API Route 的定时器在服务端重启后会丢失，生产环境请使用独立定时任务服务。`,
     interval,
-    isRealData: false,
+    isRealData: true,
+    nextRunIn: interval,
   });
 }
 
+async function runMonitorCycle() {
+  const results = {
+    hotTopics: 0,
+    articles: 0,
+    blackHorses: 0,
+    errors: [] as string[],
+  };
+
+  for (const platform of PLATFORMS) {
+    try {
+      const topics = await fetchPlatformTopics(platform);
+      results.hotTopics += topics.length;
+    } catch (error) {
+      results.errors.push(`${platform}: ${error instanceof Error ? error.message : '获取失败'}`);
+    }
+  }
+
+  try {
+    const blackHorses = await predictBlackHorses();
+    results.blackHorses = blackHorses.length;
+  } catch (error) {
+    results.errors.push(`黑马预测: ${error instanceof Error ? error.message : '失败'}`);
+  }
+
+  await logMonitorEvent('monitor_cycle',
+    `监控周期完成：获取 ${results.hotTopics} 条热点，发现 ${results.blackHorses} 个黑马${results.errors.length > 0 ? '，错误: ' + results.errors.join('; ') : ''}`);
+
+  return results;
+}
+
 async function stopMonitor() {
+  if (monitorTimer) {
+    clearInterval(monitorTimer);
+    monitorTimer = null;
+  }
+
   await logMonitorEvent('monitor_stopped', '监控已停止');
 
   return NextResponse.json({
@@ -162,29 +221,7 @@ async function stopMonitor() {
 }
 
 async function runMonitorOnce() {
-  const results = {
-    hotTopics: 0,
-    articles: 0,
-    blackHorses: 0,
-    errors: [] as string[],
-  };
-
-  try {
-    for (const platform of PLATFORMS) {
-      const topics = await fetchPlatformTopics(platform);
-      results.hotTopics += topics.length;
-    }
-
-    const blackHorses = await predictBlackHorses();
-    results.blackHorses = blackHorses.length;
-
-    await logMonitorEvent('monitor_run', 
-      `监控完成：获取 ${results.hotTopics} 条热点，发现 ${results.blackHorses} 个黑马`);
-
-  } catch (error) {
-    results.errors.push(error instanceof Error ? error.message : 'Unknown error');
-    await logMonitorEvent('monitor_error', results.errors.join('\n'));
-  }
+  const results = await runMonitorCycle();
 
   return NextResponse.json({
     success: results.errors.length === 0,

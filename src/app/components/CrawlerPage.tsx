@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { cookieStorage } from '@/lib/utils/storage';
 
 function CrawlerPage() {
   const [activePlatform, setActivePlatform] = useState<string>('xiaohongshu');
@@ -50,8 +51,7 @@ function CrawlerPage() {
   const [platformCookies, setPlatformCookies] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('crawler_cookies');
-        return saved ? JSON.parse(saved) : {};
+        return cookieStorage.load();
       } catch { return {}; }
     }
     return {};
@@ -196,7 +196,7 @@ function CrawlerPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && Object.keys(platformCookies).length > 0) {
-      localStorage.setItem('crawler_cookies', JSON.stringify(platformCookies));
+      cookieStorage.save(platformCookies);
     }
   }, [platformCookies]);
 

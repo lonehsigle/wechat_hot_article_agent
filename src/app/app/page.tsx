@@ -32,7 +32,14 @@ import StyleAnalyzerPage from '../components/StyleAnalyzerPage';
 import AnalyticsPanel from '../components/AnalyticsPanel';
 import PublishedArticlesPage from '../components/PublishedArticlesPage';
 import IPPlanPage from '../components/IPPlanPage';
-import { generateId } from '@/lib/utils/helpers';
+
+import { useAuth } from '../hooks/useAuth';
+import { useWechatAccounts } from '../hooks/useWechatAccounts';
+import { useMenuSettings } from '../hooks/useMenuSettings';
+import { useMaterials } from '../hooks/useMaterials';
+import AddKeywordModal from '../components/modals/AddKeywordModal';
+import AddCreatorModal from '../components/modals/AddCreatorModal';
+import AccountModal from '../components/modals/AccountModal';
 
 interface User {
   id: number;
@@ -238,10 +245,38 @@ interface ArticleStat {
   likeGrowth: number;
 }
 
+
 export default function AppPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  const { user, checkingAuth, handleLogout } = useAuth();
+  const {
+    wechatAccounts,
+    selectedAccountId,
+    setSelectedAccountId,
+    loading: accountLoading,
+    loadWechatAccounts,
+    addWechatAccount: createWechatAccount,
+    saveWechatAccount,
+    deleteWechatAccount,
+    setDefaultAccount,
+  } = useWechatAccounts();
+  const {
+    menuSettings,
+    setMenuSettings,
+    menuSettingsSaving,
+    menuSettingsSaved,
+    loadMenuSettings,
+    saveMenuSettings: saveMenuSettingsApi,
+  } = useMenuSettings();
+  const {
+    materials,
+    materialType,
+    setMaterialType,
+    loadMaterials,
+    deleteMaterial,
+  } = useMaterials();
+
   const [categories, setCategories] = useState<MonitorCategory[]>(mockCategories);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categories[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'optimization' | 'ipPlan'>('dashboard');
@@ -250,8 +285,6 @@ export default function AppPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('2026-03-28');
 
-  const [wechatAccounts, setWechatAccounts] = useState<WechatAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [imageSources, setImageSources] = useState<ImageSourceConfig>({
     aiGenerated: true,
   });
@@ -278,124 +311,9 @@ export default function AppPage() {
   const [promptsConfig, setPromptsConfig] = useState<Array<{ key: string; name: string; description: string; template: string }>>([]);
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<string>('');
-  const [menuSettings, setMenuSettings] = useState({
-    dashboard: true,
-    hotTopics: true,
-    crawler: true,
-    wechatCollect: true,
-    wechatAccount: true,
-    topicAnalysis: true,
-    create: true,
-    pendingPublish: true,
-    published: true,
-    analytics: true,
-    ipPlan: true,
-  });
-  const [menuSettingsSaving, setMenuSettingsSaving] = useState(false);
-  const [menuSettingsSaved, setMenuSettingsSaved] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth');
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-        } else {
-          router.push('/');
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        router.push('/');
-      } finally {
-        setCheckingAuth(false);
-      }
-    };
-    checkAuth();
-  }, [router]);
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'logout' }),
-      });
-      router.push('/');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
-
-  const loadMenuSettings = async () => {
-    try {
-      const res = await fetch('/api/app-settings?key=menuSettings');
-      const data = await res.json();
-      if (data.success && data.value) {
-        setMenuSettings(prev => ({ ...prev, ...data.value }));
-      }
-    } catch (error) {
-      console.error('Failed to load menu settings:', error);
-    }
-  };
-
-  const loadImageSources = async () => {
-    try {
-      const res = await fetch('/api/app-settings?key=imageSources');
-      const data = await res.json();
-      if (data.success && data.value) {
-        setImageSources(prev => ({ ...prev, ...data.value }));
-      }
-    } catch (error) {
-      console.error('Failed to load image sources:', error);
-    }
-  };
-
-  const saveImageSources = async (value: ImageSourceConfig) => {
-    try {
-      await fetch('/api/app-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: 'imageSources',
-          value,
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to save image sources:', error);
-    }
-  };
-
-  const saveMenuSettings = async () => {
-    setMenuSettingsSaving(true);
-    try {
-      const res = await fetch('/api/app-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: 'menuSettings',
-          value: menuSettings,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMenuSettingsSaved(true);
-        setTimeout(() => setMenuSettingsSaved(false), 2000);
-      } else {
-        alert('保存失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to save menu settings:', error);
-      alert('保存失败，请重试');
-    } finally {
-      setMenuSettingsSaving(false);
-    }
-  };
   const [loading, setLoading] = useState(false);
   const [showAddKeywordModal, setShowAddKeywordModal] = useState(false);
   const [showAddCreatorModalSettings, setShowAddCreatorModalSettings] = useState(false);
-  const [newKeyword, setNewKeyword] = useState('');
-  const [newCreatorNameSettings, setNewCreatorNameSettings] = useState('');
   const [evaluationInput, setEvaluationInput] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<{
@@ -436,15 +354,6 @@ export default function AppPage() {
     isLowFollowerViral: false,
   });
   const [batchTitles, setBatchTitles] = useState('');
-  const [materials, setMaterials] = useState<Array<{
-    id: number;
-    type: string;
-    source: string;
-    title: string;
-    content: string;
-    keyPoints?: string[];
-  }>>([]);
-  const [materialType, setMaterialType] = useState<string>('all');
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<{
     id: number;
@@ -455,34 +364,34 @@ export default function AppPage() {
     keyPoints?: string[];
   } | null>(null);
 
-  const loadMaterials = async (type?: string) => {
+
+
+  const loadImageSources = async () => {
     try {
-      const url = type && type !== 'all' ? `/api/materials?type=${type}` : '/api/materials';
-      const res = await fetch(url);
+      const res = await fetch('/api/app-settings?key=imageSources');
       const data = await res.json();
-      setMaterials(data.success ? (data.materials || []) : (Array.isArray(data) ? data : []));
+      if (data.success && data.value) {
+        setImageSources(prev => ({ ...prev, ...data.value }));
+      }
     } catch (error) {
-      console.error('Failed to load materials:', error);
+      console.error('Failed to load image sources:', error);
     }
   };
 
-  const deleteMaterial = async (id: number) => {
-    if (!confirm('确定删除此素材？')) return;
+  const saveImageSources = async (value: ImageSourceConfig) => {
     try {
-      await fetch(`/api/materials?id=${id}`, { method: 'DELETE' });
-      setMaterials(prev => prev.filter(m => m.id !== id));
+      await fetch('/api/app-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'imageSources',
+          value,
+        }),
+      });
     } catch (error) {
-      console.error('Failed to delete material:', error);
+      console.error('Failed to save image sources:', error);
     }
   };
-
-  useEffect(() => {
-    loadMaterials(materialType === 'all' ? undefined : materialType);
-  }, [materialType]);
-
-  useEffect(() => {
-    loadWritingStyles();
-  }, []);
 
   const loadWritingStyles = async () => {
     try {
@@ -652,32 +561,8 @@ export default function AppPage() {
     loadLLMConfig();
     loadMenuSettings();
     loadImageSources();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const loadWechatAccounts = async () => {
-    try {
-      const res = await fetch('/api/wechat-accounts');
-      const data = await res.json();
-      const accounts = data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : (data.accounts || []));
-      if (accounts.length > 0) {
-        const formatted = accounts.map((a: { id: number; name: string; appId: string; appSecret: string; authorName: string; isDefault: boolean; targetAudience?: string; readerPersona?: string }) => ({
-          id: String(a.id),
-          name: a.name,
-          appId: a.appId || '',
-          appSecret: a.appSecret || '',
-          authorName: a.authorName || '',
-          isDefault: a.isDefault || false,
-          targetAudience: a.targetAudience || '',
-          readerPersona: a.readerPersona || '',
-        }));
-        setWechatAccounts(formatted);
-        const defaultAccount = formatted.find((a: WechatAccount) => a.isDefault);
-        setSelectedAccountId(defaultAccount?.id || formatted[0]?.id || '');
-      }
-    } catch (error) {
-      console.error('Failed to load wechat accounts:', error);
-    }
-  };
 
   const loadLLMConfig = async () => {
     try {
@@ -749,7 +634,7 @@ export default function AppPage() {
 
     for (let i = 0; i < selectedTopics.length; i++) {
       const topic = selectedTopics[i];
-      
+
       setArticleDrafts(prev => prev.map(d => 
         d.topicId === topic.id ? { ...d, status: 'generating', progress: 10 } : d
       ));
@@ -772,7 +657,7 @@ export default function AppPage() {
         }
 
         const data = await res.json();
-        
+
         setArticleDrafts(prev => prev.map(d => 
           d.topicId === topic.id ? { 
             ...d, 
@@ -791,14 +676,7 @@ export default function AppPage() {
   };
 
   const addWechatAccount = () => {
-    const newAccount: WechatAccount = {
-      id: generateId(),
-      name: '',
-      appId: '',
-      appSecret: '',
-      authorName: '文笙',
-      isDefault: false,
-    };
+    const newAccount = createWechatAccount();
     setEditingAccount(newAccount);
     setShowAccountModal(true);
   };
@@ -808,99 +686,16 @@ export default function AppPage() {
     setShowAccountModal(true);
   };
 
-  const saveWechatAccount = async () => {
-    if (!editingAccount) return;
-    if (editingAccount.name.trim() === '') return;
-
-    setLoading(true);
-    try {
-      const isNew = !wechatAccounts.find(a => a.id === editingAccount.id);
-      
-      if (isNew) {
-        const res = await fetch('/api/wechat-accounts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: editingAccount.name,
-            appId: editingAccount.appId,
-            appSecret: editingAccount.appSecret,
-            authorName: editingAccount.authorName,
-            isDefault: editingAccount.isDefault,
-            targetAudience: editingAccount.targetAudience,
-            readerPersona: editingAccount.readerPersona,
-          }),
-        });
-        const data = await res.json();
-        const account = data.success ? data.data : data;
-        if (account) {
-          setWechatAccounts(prev => [...prev, {
-            id: String(account.id),
-            name: account.name,
-            appId: account.appId || '',
-            appSecret: account.appSecret || '',
-            authorName: account.authorName || '',
-            isDefault: account.isDefault || false,
-            targetAudience: account.targetAudience || '',
-            readerPersona: account.readerPersona || '',
-          }]);
-          if (!selectedAccountId) {
-            setSelectedAccountId(String(account.id));
-          }
-        }
-      } else {
-        await fetch('/api/wechat-accounts', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: parseInt(editingAccount.id),
-            name: editingAccount.name,
-            appId: editingAccount.appId,
-            appSecret: editingAccount.appSecret,
-            authorName: editingAccount.authorName,
-            targetAudience: editingAccount.targetAudience,
-            readerPersona: editingAccount.readerPersona,
-          }),
-        });
-        setWechatAccounts(prev => prev.map(a => a.id === editingAccount.id ? editingAccount : a));
-      }
-      setShowAccountModal(false);
-      setEditingAccount(null);
-    } catch (error) {
-      console.error('Failed to save wechat account:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleSaveAccount = async (account: WechatAccount) => {
+    if (!account || account.name.trim() === '') return;
+    await saveWechatAccount(account, wechatAccounts);
+    setShowAccountModal(false);
+    setEditingAccount(null);
   };
 
-  const deleteWechatAccount = async (id: string) => {
-    try {
-      await fetch(`/api/wechat-accounts?id=${id}`, { method: 'DELETE' });
-      setWechatAccounts(prev => {
-        const filtered = prev.filter(a => a.id !== id);
-        if (selectedAccountId === id && filtered.length > 0) {
-          setSelectedAccountId(filtered[0].id);
-        }
-        return filtered;
-      });
-    } catch (error) {
-      console.error('Failed to delete wechat account:', error);
-    }
-  };
-
-  const setDefaultAccount = async (id: string) => {
-    try {
-      await fetch('/api/wechat-accounts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: parseInt(id), setDefault: true }),
-      });
-      setWechatAccounts(prev => prev.map(a => ({
-        ...a,
-        isDefault: a.id === id,
-      })));
-    } catch (error) {
-      console.error('Failed to set default account:', error);
-    }
+  const handleDeleteAccount = async (id: string) => {
+    if (!confirm('确定删除此公众号账号？')) return;
+    await deleteWechatAccount(id);
   };
 
   const getStatusText = (status: ArticleDraft['status'], progress: number) => {
@@ -930,6 +725,7 @@ export default function AppPage() {
       default: return '#64748b';
     }
   };
+
 
   if (checkingAuth) {
     return (
@@ -1356,7 +1152,7 @@ export default function AppPage() {
                           {!account.isDefault && (
                             <button style={styles.accountActionBtn} onClick={() => setDefaultAccount(account.id)}>设为默认</button>
                           )}
-                          <button style={{ ...styles.accountActionBtn, color: '#ef4444' }} onClick={() => deleteWechatAccount(account.id)}>删除</button>
+                          <button style={{ ...styles.accountActionBtn, color: '#ef4444' }} onClick={() => handleDeleteAccount(account.id)}>删除</button>
                         </div>
                       </div>
                     ))}
@@ -1740,7 +1536,7 @@ export default function AppPage() {
                         <span style={{ fontSize: '13px', color: '#10b981' }}>✓ 已保存</span>
                       )}
                       <button
-                        onClick={saveMenuSettings}
+                        onClick={() => saveMenuSettingsApi(menuSettings)}
                         disabled={menuSettingsSaving}
                         style={{
                           padding: '8px 16px',
@@ -1838,197 +1634,39 @@ export default function AppPage() {
           </div>
         )}
 
-        {showAddKeywordModal && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}>
-            <div style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '24px',
-              width: '400px',
-              maxWidth: '90vw',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>🔑 添加关键词</h3>
-                <button onClick={() => { setShowAddKeywordModal(false); setNewKeyword(''); }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <input
-                  type="text"
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value)}
-                  placeholder="请输入要监控的关键词..."
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newKeyword.trim() && selectedCategory) {
-                      setCategories(prev => prev.map(cat => {
-                        if (cat.id === selectedCategoryId) {
-                          return { ...cat, keywords: [...cat.keywords, newKeyword.trim()] };
-                        }
-                        return cat;
-                      }));
-                      setShowAddKeywordModal(false);
-                      setNewKeyword('');
-                    }
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => { setShowAddKeywordModal(false); setNewKeyword(''); }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#f3f4f6',
-                    color: '#374151',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-                    if (newKeyword.trim() && selectedCategory) {
-                      setCategories(prev => prev.map(cat => {
-                        if (cat.id === selectedCategoryId) {
-                          return { ...cat, keywords: [...cat.keywords, newKeyword.trim()] };
-                        }
-                        return cat;
-                      }));
-                      setShowAddKeywordModal(false);
-                      setNewKeyword('');
-                    }
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  添加
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {showAddCreatorModalSettings && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}>
-            <div style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '24px',
-              width: '400px',
-              maxWidth: '90vw',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>👤 添加博主</h3>
-                <button onClick={() => { setShowAddCreatorModalSettings(false); setNewCreatorNameSettings(''); }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <input
-                  type="text"
-                  value={newCreatorNameSettings}
-                  onChange={(e) => setNewCreatorNameSettings(e.target.value)}
-                  placeholder="请输入博主名称或主页链接..."
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newCreatorNameSettings.trim() && selectedCategory) {
-                      setCategories(prev => prev.map(cat => {
-                        if (cat.id === selectedCategoryId) {
-                          return { ...cat, creators: [...cat.creators, newCreatorNameSettings.trim()] };
-                        }
-                        return cat;
-                      }));
-                      setShowAddCreatorModalSettings(false);
-                      setNewCreatorNameSettings('');
-                    }
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => { setShowAddCreatorModalSettings(false); setNewCreatorNameSettings(''); }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#f3f4f6',
-                    color: '#374151',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-                    if (newCreatorNameSettings.trim() && selectedCategory) {
-                      setCategories(prev => prev.map(cat => {
-                        if (cat.id === selectedCategoryId) {
-                          return { ...cat, creators: [...cat.creators, newCreatorNameSettings.trim()] };
-                        }
-                        return cat;
-                      }));
-                      setShowAddCreatorModalSettings(false);
-                      setNewCreatorNameSettings('');
-                    }
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  添加
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AddKeywordModal
+          show={showAddKeywordModal}
+          onClose={() => setShowAddKeywordModal(false)}
+          onAdd={(keyword) => {
+            setCategories(prev => prev.map(cat => {
+              if (cat.id === selectedCategoryId) {
+                return { ...cat, keywords: [...cat.keywords, keyword] };
+              }
+              return cat;
+            }));
+            setShowAddKeywordModal(false);
+          }}
+          selectedCategory={selectedCategory}
+          selectedCategoryId={selectedCategoryId}
+        />
+
+        <AddCreatorModal
+          show={showAddCreatorModalSettings}
+          onClose={() => setShowAddCreatorModalSettings(false)}
+          onAdd={(creator) => {
+            setCategories(prev => prev.map(cat => {
+              if (cat.id === selectedCategoryId) {
+                return { ...cat, creators: [...cat.creators, creator] };
+              }
+              return cat;
+            }));
+            setShowAddCreatorModalSettings(false);
+          }}
+          selectedCategory={selectedCategory}
+          selectedCategoryId={selectedCategoryId}
+        />
+
 
         {activeTab === 'create' && (
           <CreateWorkbench
@@ -2056,123 +1694,15 @@ export default function AppPage() {
         )}
       </main>
 
-      {showAccountModal && editingAccount && (
-        <div style={styles.modalOverlay} onClick={() => setShowAccountModal(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
-                {wechatAccounts.find(a => a.id === editingAccount.id) ? '编辑公众号账号' : '新增公众号账号'}
-              </h3>
-              <button style={styles.modalClose} onClick={() => setShowAccountModal(false)}>×</button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>账号名称 *</label>
-                <input
-                  type="text"
-                  style={styles.formInput}
-                  placeholder="如：科技观察、程序员日报"
-                  value={editingAccount.name}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, name: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>AppID</label>
-                <input
-                  type="text"
-                  style={styles.formInput}
-                  placeholder="请输入微信公众号 AppID"
-                  value={editingAccount.appId}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, appId: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>AppSecret</label>
-                <input
-                  type="password"
-                  style={styles.formInput}
-                  placeholder="请输入微信公众号 AppSecret"
-                  value={editingAccount.appSecret}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, appSecret: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>作者名称</label>
-                <input
-                  type="text"
-                  style={styles.formInput}
-                  placeholder="默认作者署名"
-                  value={editingAccount.authorName}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, authorName: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>目标用户群体</label>
-                <textarea
-                  style={{ ...styles.formInput, minHeight: '60px', resize: 'vertical' }}
-                  placeholder="描述您的目标用户群体，如：25-35岁职场人士、科技爱好者、创业者等"
-                  value={editingAccount.targetAudience || ''}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, targetAudience: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>读者画像</label>
-                <textarea
-                  style={{ ...styles.formInput, minHeight: '80px', resize: 'vertical' }}
-                  placeholder="详细描述读者画像，如：关注科技趋势、喜欢深度内容、注重实用价值等"
-                  value={editingAccount.readerPersona || ''}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, readerPersona: e.target.value })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>内容风格</label>
-                <select
-                  style={styles.formSelect}
-                  value={editingAccount.contentStyle || ''}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, contentStyle: e.target.value })}
-                >
-                  <option value="">请选择内容风格</option>
-                  <option value="专业深度">专业深度</option>
-                  <option value="轻松幽默">轻松幽默</option>
-                  <option value="干货实用">干货实用</option>
-                  <option value="情感共鸣">情感共鸣</option>
-                  <option value="故事叙述">故事叙述</option>
-                  <option value="资讯速递">资讯速递</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>主要话题领域</label>
-                <input
-                  type="text"
-                  style={styles.formInput}
-                  placeholder="用逗号分隔，如：科技,AI,创业,职场"
-                  value={(editingAccount.mainTopics || []).join(',')}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, mainTopics: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>语言风格偏好</label>
-                <select
-                  style={styles.formSelect}
-                  value={editingAccount.tonePreference || ''}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, tonePreference: e.target.value })}
-                >
-                  <option value="">请选择语言风格</option>
-                  <option value="正式严谨">正式严谨</option>
-                  <option value="亲切自然">亲切自然</option>
-                  <option value="活泼有趣">活泼有趣</option>
-                  <option value="专业权威">专业权威</option>
-                  <option value="接地气">接地气</option>
-                </select>
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => setShowAccountModal(false)}>取消</button>
-              <button style={styles.saveBtn} onClick={saveWechatAccount}>保存</button>
-            </div>
-          </div>
-        </div>
-      )}
+
+      <AccountModal
+        show={showAccountModal}
+        account={editingAccount}
+        onClose={() => { setShowAccountModal(false); setEditingAccount(null); }}
+        onSave={handleSaveAccount}
+        wechatAccounts={wechatAccounts}
+      />
+
 
       {showAddBenchmark && (
         <div style={styles.modalOverlay} onClick={() => setShowAddBenchmark(false)}>
