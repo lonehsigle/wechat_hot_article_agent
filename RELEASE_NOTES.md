@@ -6,27 +6,11 @@
 
 ## v1.28.0 - 2026年4月22日
 
-### 🧪 测试体系全面升级
-
-- **单元测试基础设施**：引入 Vitest + @testing-library/react + jsdom
-  - 491+ 单元测试覆盖 29 个测试文件
-  - 代码行覆盖率达到 **91%+**
-  - API 路由测试覆盖：publish/contents/styles 100%，crawler 98%，hot-topics/auth 95%，monitor 90% 等
-- **E2E 端到端测试**：引入 Playwright
-  - 9 个 E2E 测试场景全部通过
-  - 覆盖登录、Dashboard、导航、工作台等核心流程
-- **Mock 数据体系**：建立统一的 DB Mock 架构，支持 Proxy 模式拦截 Drizzle ORM 调用
-
 ### 🐛 Bug 修复
 
-- **控制台 AbortError 清理**：修复 6 个页面组件在 React Strict Mode 下的 `AbortError` 警告
-  - DashboardPage、PendingPublishPage、AnalyticsPanel、CrawlerPage、PromptManager
-  - 组件卸载时 fetch 请求被中断不再抛出未捕获异常
-
-### 🏗️ 工程化改进
-
-- **TypeScript 配置优化**：`tsconfig.json` 排除测试目录，避免测试类型污染生产编译
-- **开发端口调整**：开发服务器端口改为 3003，避免与其他服务冲突
+- **控制台报错清理**：修复切换页面时出现的 `AbortError` 报错
+  - 影响页面：Dashboard、待发布管理、数据分析、爬虫、Prompt 管理
+  - 页面切换更加流畅，控制台保持干净
 
 ***
 
