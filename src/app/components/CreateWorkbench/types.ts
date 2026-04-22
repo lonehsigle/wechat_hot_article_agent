@@ -240,7 +240,7 @@ export function useCreateWorkbenchState() {
     searchResults, setSearchResults,
     titleOptions, setTitleOptions,
     selectedTitle, setSelectedTitle,
-    evaluatingTitles,
+    evaluatingTitles, setEvaluatingTitles,
     articleContent, setArticleContent,
     openingContent, setOpeningContent,
     endingContent, setEndingContent,

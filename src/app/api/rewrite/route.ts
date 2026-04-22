@@ -187,7 +187,7 @@ async function handleRewrite(
     : `深度解析：${articles[0].title.substring(0, 15)}等${articles.length}个热点`;
 
   const [rewrite] = await db().insert(articleRewrites).values({
-    sourceArticleIds: articleIds,
+    sourceArticleIds: JSON.stringify(articleIds),
     title,
     content: finalContent,
     summary: articles.map(a => a.digest).filter(Boolean).join(' ').substring(0, 200),
@@ -298,7 +298,7 @@ ${i + 1}. 【${t.platform}】${t.title}
     : `热点速递：${topics[0].title.substring(0, 10)}等${topics.length}个热点深度解析`;
 
   const [rewrite] = await db().insert(articleRewrites).values({
-    sourceArticleIds: topicIds,
+    sourceArticleIds: JSON.stringify(topicIds),
     title,
     content: finalContent,
     summary: topics.map(t => t.description).filter(Boolean).join(' ').substring(0, 200),

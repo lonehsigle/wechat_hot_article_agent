@@ -145,6 +145,7 @@ export default function PromptManager() {
       setPrompts(data.success ? (data.prompts || []) : (data.prompts || []));
       setError(null);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError('加载 Prompt 配置失败');
     } finally {
       setLoading(false);

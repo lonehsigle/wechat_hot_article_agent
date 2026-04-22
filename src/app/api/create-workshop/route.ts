@@ -1080,7 +1080,7 @@ async function fullSOPWorkflow(params: {
       const generatedTitles = await generateTitles({ 
         keyword: params.keyword, 
         content: contentSource,
-        styleData: params.styleData,
+        styleData: params.styleData as { name: string; titleStrategy?: string | null; exampleTitles?: string[] | null } | null | undefined,
         originalTitle: params.originalTitle,
         readCount: params.readCount
       });
@@ -1093,7 +1093,7 @@ async function fullSOPWorkflow(params: {
       title: bestTitle,
       originalContent: contentSource,
       style: params.style,
-      styleData: params.styleData,
+      styleData: params.styleData as { name: string; openingStyle?: string | null; articleFramework?: string | null; contentProgression?: string | null; languageStyle?: string | null; endingDesign?: string | null; emotionalHooks?: string[] | null; template?: string | null } | null | undefined,
     });
     
     result[1].status = 'completed';

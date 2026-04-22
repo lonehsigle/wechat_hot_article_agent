@@ -335,7 +335,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'complete-auth') {
-    const { token, cookie, nickname, avatar } = body;
+    const { token, cookie, nickname, avatar } = body as { token: string; cookie: string; nickname: string; avatar: string };
     
     const [auth] = await db().update(wechatAuth)
       .set({
@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'add-subscription') {
-    const { biz, name, alias, avatar, description } = body;
+    const { biz, name, alias, avatar, description } = body as { biz: string; name: string; alias?: string; avatar?: string; description?: string };
     
     const existing = await db().select().from(wechatSubscriptions).where(eq(wechatSubscriptions.biz, biz)).limit(1);
     if (existing.length > 0) {
@@ -363,16 +363,16 @@ export async function POST(request: NextRequest) {
     const [subscription] = await db().insert(wechatSubscriptions).values({
       biz,
       name,
-      alias,
-      avatar,
-      description,
+      alias: alias || null,
+      avatar: avatar || null,
+      description: description || null,
     }).returning();
     
     return NextResponse.json({ success: true, subscription });
   }
 
   if (action === 'update-subscription') {
-    const { id, monitorEnabled, monitorInterval, alias } = body;
+    const { id, monitorEnabled, monitorInterval, alias } = body as { id: number; monitorEnabled?: boolean; monitorInterval?: number; alias?: string };
     
     const [subscription] = await db().update(wechatSubscriptions)
       .set({
@@ -483,28 +483,36 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'save-article') {
-    const { subscriptionId, msgId, title, author, digest, content, contentHtml, coverImage, sourceUrl, publishTime, readCount, likeCount } = body;
+    const { subscriptionId, msgId, title, author, digest, content, contentHtml, coverImage, sourceUrl, publishTime, readCount, likeCount } = body as {
+      subscriptionId?: number; msgId: string; title: string; author?: string; digest?: string;
+      content?: string; contentHtml?: string; coverImage?: string; sourceUrl: string;
+      publishTime?: string | number; readCount?: number; likeCount?: number;
+    };
     
     const [article] = await db().insert(collectedArticles).values({
-      subscriptionId,
+      subscriptionId: subscriptionId || null,
       msgId,
       title,
-      author,
-      digest,
-      content,
-      contentHtml,
-      coverImage,
+      author: author || null,
+      digest: digest || null,
+      content: content || null,
+      contentHtml: contentHtml || null,
+      coverImage: coverImage || null,
       sourceUrl,
-      publishTime: publishTime ? new Date(publishTime) : undefined,
-      readCount,
-      likeCount,
+      publishTime: publishTime ? new Date(publishTime) : null,
+      readCount: readCount || 0,
+      likeCount: likeCount || 0,
     }).returning();
     
     return NextResponse.json({ success: true, article });
   }
 
   if (action === 'update-article') {
-    const { articleId, id, content, contentHtml, tags, note, isFavorite, readCount, likeCount, commentCount, recommendCount, shareCount, publishTime } = body;
+    const { articleId, id, content, contentHtml, tags, note, isFavorite, readCount, likeCount, commentCount, recommendCount, shareCount, publishTime } = body as {
+      articleId?: number; id?: number; content?: string; contentHtml?: string; tags?: string; note?: string;
+      isFavorite?: boolean; readCount?: number; likeCount?: number; commentCount?: number;
+      recommendCount?: number; shareCount?: number; publishTime?: string | number;
+    };
     
     const targetId = articleId || id;
     if (!targetId) {
@@ -542,7 +550,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'delete-article') {
-    const { id } = body;
+    const { id } = body as { id?: number };
+    if (!id) {
+      return NextResponse.json({ success: false, error: '缺少文章ID' }, { status: 400 });
+    }
     
     await db().delete(collectedArticles).where(eq(collectedArticles.id, id));
     
@@ -899,10 +910,10 @@ async function collectArticleByUrl(articleUrl: string) {
     sourceUrl: articleUrl,
     title: title || '无标题',
     content: plainContent,
-    keyPoints: [],
-    quotes: [],
-    dataPoints: [],
-    tags: [nickname, '微信采集'].filter(Boolean),
+    keyPoints: null,
+    quotes: null,
+    dataPoints: null,
+    tags: JSON.stringify([nickname, '微信采集'].filter(Boolean)),
     topicId: null,
     isUsed: false,
   });

@@ -88,7 +88,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
             highlights: ['已验证爆款', `阅读量${firstArticle.readCount.toLocaleString()}`],
           },
         };
-        titles = titles.filter(t => t.text !== firstArticle.title);
+        titles = titles.filter((t: typeof titles[0]) => t.text !== firstArticle.title);
         titles.unshift(originalTitleOption);
       }
 

@@ -225,6 +225,10 @@ export async function POST(request: NextRequest) {
       const inserted = await database.insert(materialLibrary).values(
         materials.map(m => ({
           ...m,
+          keyPoints: m.keyPoints ? JSON.stringify(m.keyPoints) : null,
+          quotes: m.quotes ? JSON.stringify(m.quotes) : null,
+          dataPoints: m.dataPoints ? JSON.stringify(m.dataPoints) : null,
+          tags: m.tags ? JSON.stringify(m.tags) : null,
           isUsed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -259,6 +263,10 @@ export async function POST(request: NextRequest) {
             const inserted = await database.insert(materialLibrary).values(
               materials.map(m => ({
                 ...m,
+                keyPoints: m.keyPoints ? JSON.stringify(m.keyPoints) : null,
+                quotes: m.quotes ? JSON.stringify(m.quotes) : null,
+                dataPoints: m.dataPoints ? JSON.stringify(m.dataPoints) : null,
+                tags: m.tags ? JSON.stringify(m.tags) : null,
                 isUsed: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),

@@ -40,6 +40,7 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
         analysisTasks: analysisData.length,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to load stats:', error);
     } finally {
       setLoading(false);

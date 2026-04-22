@@ -109,6 +109,7 @@ function AnalyticsPanel() {
         recentSuggestions,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to load analytics:', error);
     } finally {
       setLoading(false);

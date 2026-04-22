@@ -190,6 +190,7 @@ function CrawlerPage() {
         setCreators(data.creators);
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Load creators failed:', error);
     }
   };

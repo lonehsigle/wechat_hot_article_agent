@@ -7,7 +7,7 @@ import type {
   WorkflowStep,
   CollectedArticle,
   LayoutStyle,
-} from './types';
+} from '../types';
 
 interface InputStepProps {
   inputSource: InputSource;

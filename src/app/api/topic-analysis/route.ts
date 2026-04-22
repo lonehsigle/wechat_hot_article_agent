@@ -24,7 +24,7 @@ async function saveWordCloudCache(cacheKey: string, basicWordCloud: Array<{ word
   if (existing) {
     await db().update(wordCloudCache)
       .set({
-        basicWordCloud,
+        basicWordCloud: JSON.stringify(basicWordCloud),
         articleCount,
         articleHash,
         updatedAt: now,
@@ -34,7 +34,7 @@ async function saveWordCloudCache(cacheKey: string, basicWordCloud: Array<{ word
   } else {
     const result = await db().insert(wordCloudCache).values({
       cacheKey,
-      basicWordCloud,
+      basicWordCloud: JSON.stringify(basicWordCloud),
       articleCount,
       articleHash,
       createdAt: now,
@@ -49,7 +49,7 @@ async function updateAIWordCloud(cacheKey: string, aiWordCloud: Array<{ word: st
   if (existing) {
     await db().update(wordCloudCache)
       .set({
-        aiWordCloud,
+        aiWordCloud: JSON.stringify(aiWordCloud),
         aiProcessedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -302,9 +302,9 @@ export async function GET() {
     initDatabase();
     const config = await getLLMConfig();
     const safeConfig = {
-      provider: config.provider,
-      model: config.model,
-      isConfigured: !!(config.apiKey),
+      provider: config?.provider || '',
+      model: config?.model || '',
+      isConfigured: !!(config?.apiKey),
     };
     return NextResponse.json({ success: true, config: safeConfig });
   } catch (error) {

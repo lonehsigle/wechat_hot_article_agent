@@ -19,9 +19,9 @@ export async function createMonitorCategory(data: { name: string; platforms?: st
   const now = new Date();
   const result = await database.insert(monitorCategories).values({
     name: data.name,
-    platforms: data.platforms || null,
-    keywords: data.keywords || null,
-    creators: data.creators || null,
+    platforms: data.platforms ? JSON.stringify(data.platforms) : null,
+    keywords: data.keywords ? JSON.stringify(data.keywords) : null,
+    creators: data.creators ? JSON.stringify(data.creators) : null,
     createdAt: now,
     updatedAt: now,
   }).returning();
@@ -30,10 +30,12 @@ export async function createMonitorCategory(data: { name: string; platforms?: st
 
 export async function updateMonitorCategory(id: number, data: Partial<{ name: string; platforms: string[] | null; keywords: string[] | null; creators: string[] | null }>) {
   const database = db();
-  const result = await database.update(monitorCategories).set({
-    ...data,
-    updatedAt: new Date(),
-  }).where(eq(monitorCategories.id, id)).returning();
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.platforms !== undefined) updateData.platforms = data.platforms ? JSON.stringify(data.platforms) : null;
+  if (data.keywords !== undefined) updateData.keywords = data.keywords ? JSON.stringify(data.keywords) : null;
+  if (data.creators !== undefined) updateData.creators = data.creators ? JSON.stringify(data.creators) : null;
+  const result = await database.update(monitorCategories).set(updateData).where(eq(monitorCategories.id, id)).returning();
   return result[0] || null;
 }
 
@@ -254,16 +256,17 @@ export async function setCache<T>(key: string, data: T, expiresInSeconds: number
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
   const existing = await database.select().from(cacheRecords).where(eq(cacheRecords.cacheKey, key));
   
+  const cacheData = typeof data === 'string' ? data : JSON.stringify(data);
   if (existing[0]) {
     await database.update(cacheRecords).set({
-      cacheData: data as unknown as Record<string, unknown>,
+      cacheData,
       fetchedAt: new Date(),
       expiresAt,
     }).where(eq(cacheRecords.id, existing[0].id));
   } else {
     await database.insert(cacheRecords).values({
       cacheKey: key,
-      cacheData: data as unknown as Record<string, unknown>,
+      cacheData,
       fetchedAt: new Date(),
       expiresAt,
     });
@@ -294,7 +297,7 @@ export async function createPublishedArticle(data: { title: string; content?: st
     title: data.title,
     content: data.content ?? '',
     coverImage: data.coverImage ?? '',
-    images: data.images ?? null,
+    images: data.images ? JSON.stringify(data.images) : null,
     wechatAccountId: data.wechatAccountId ?? null,
     topicId: data.topicId ?? null,
     publishStatus: data.publishStatus ?? 'draft',
@@ -309,10 +312,16 @@ export async function createPublishedArticle(data: { title: string; content?: st
 
 export async function updatePublishedArticle(id: number, data: Partial<{ title: string; content: string; coverImage: string; images: string[] | null; publishStatus: string; publishTime: Date | null; wechatMediaId: string; wechatArticleUrl: string }>) {
   const database = db();
-  const result = await database.update(publishedArticles).set({
-    ...data,
-    updatedAt: new Date(),
-  }).where(eq(publishedArticles.id, id)).returning();
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.content !== undefined) updateData.content = data.content;
+  if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
+  if (data.images !== undefined) updateData.images = data.images ? JSON.stringify(data.images) : null;
+  if (data.publishStatus !== undefined) updateData.publishStatus = data.publishStatus;
+  if (data.publishTime !== undefined) updateData.publishTime = data.publishTime;
+  if (data.wechatMediaId !== undefined) updateData.wechatMediaId = data.wechatMediaId;
+  if (data.wechatArticleUrl !== undefined) updateData.wechatArticleUrl = data.wechatArticleUrl;
+  const result = await database.update(publishedArticles).set(updateData).where(eq(publishedArticles.id, id)).returning();
   return result[0] || null;
 }
 
@@ -392,7 +401,7 @@ export async function createWritingTechnique(data: { category: string; stage: st
     content: data.content,
     examples: data.examples ?? null,
     formulas: data.formulas ?? null,
-    checklists: data.checklists ?? null,
+    checklists: data.checklists ? JSON.stringify(data.checklists) : null,
     priority: data.priority ?? 0,
     isActive: data.isActive ?? true,
     createdAt: now,
@@ -403,10 +412,17 @@ export async function createWritingTechnique(data: { category: string; stage: st
 
 export async function updateWritingTechnique(id: number, data: Partial<{ category: string; stage: string; title: string; content: string; examples: string; formulas: string; checklists: string[]; priority: number; isActive: boolean }>) {
   const database = db();
-  const result = await database.update(writingTechniques).set({
-    ...data,
-    updatedAt: new Date(),
-  }).where(eq(writingTechniques.id, id)).returning();
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.category !== undefined) updateData.category = data.category;
+  if (data.stage !== undefined) updateData.stage = data.stage;
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.content !== undefined) updateData.content = data.content;
+  if (data.examples !== undefined) updateData.examples = data.examples;
+  if (data.formulas !== undefined) updateData.formulas = data.formulas;
+  if (data.checklists !== undefined) updateData.checklists = data.checklists ? JSON.stringify(data.checklists) : null;
+  if (data.priority !== undefined) updateData.priority = data.priority;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  const result = await database.update(writingTechniques).set(updateData).where(eq(writingTechniques.id, id)).returning();
   return result[0] || null;
 }
 
@@ -425,11 +441,11 @@ export async function getTechniquesByStage(stage: string) {
 
 export async function getTechniquesForPrompt(stage: string) {
   const techniques = await getTechniquesByStage(stage);
-  return techniques.map((t: { title: string; content: string; formulas: string | null; examples: string | null; checklists: string[] | null }) => ({
+  return techniques.map((t: { title: string; content: string; formulas: string | null; examples: string | null; checklists: string | null }) => ({
     title: t.title,
     content: t.content,
     formulas: t.formulas,
     examples: t.examples,
-    checklists: t.checklists,
+    checklists: t.checklists ? JSON.parse(t.checklists) as string[] : null,
   }));
 }

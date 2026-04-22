@@ -256,7 +256,7 @@ async function fetchPlatformTopics(platform: string) {
       hotValue: topic.hotValue,
       rank: topic.rank,
       category: topic.category,
-      tags: topic.tags,
+      tags: JSON.stringify(topic.tags),
       trendDirection: topic.trendDirection,
       predictedGrowth: topic.predictedGrowth,
       isBlackHorse: topic.isBlackHorse,

@@ -139,10 +139,10 @@ ${a.content}
       contentProgression: analysis.contentProgression || '',
       endingDesign: analysis.endingDesign || '',
       languageStyle: analysis.languageStyle || '',
-      emotionalHooks: analysis.emotionalHooks || [],
+      emotionalHooks: analysis.emotionalHooks ? JSON.stringify(analysis.emotionalHooks) : null,
       articleType: analysis.articleType || '',
       template: analysis.template || '',
-      exampleTitles: analysis.exampleTitles || [],
+      exampleTitles: analysis.exampleTitles ? JSON.stringify(analysis.exampleTitles) : null,
     }).returning();
 
     return NextResponse.json({ success: true, style: saved });

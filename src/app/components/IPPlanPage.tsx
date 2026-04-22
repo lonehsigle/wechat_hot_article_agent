@@ -867,7 +867,7 @@ function IPPlanPage() {
                     ))}
                   </div>
                 )}
-                {(formData.monetizationPath as Record<string, unknown>)?.methods && (
+                {!!(formData.monetizationPath as Record<string, unknown>)?.methods && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>💰</span>
                     <span>变现：{((plan.monetizationPath as Record<string, unknown>)?.methods as string[] || []).join('、') || '未设置'}</span>

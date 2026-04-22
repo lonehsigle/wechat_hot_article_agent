@@ -305,7 +305,7 @@ export async function POST() {
             content: technique.content,
             examples: technique.examples || null,
             formulas: technique.formulas || null,
-            checklists: technique.checklists || null,
+            checklists: technique.checklists ? JSON.stringify(technique.checklists) : null,
             priority: technique.priority || 0,
             isActive: true,
             createdAt: new Date(),

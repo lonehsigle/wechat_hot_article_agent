@@ -272,7 +272,7 @@ async function handleAnalyzeGap(data: { articleId: number }) {
 目标用户群体：${accountInfo.targetAudience || '未设置'}
 读者画像：${accountInfo.readerPersona || '未设置'}
 内容风格：${accountInfo.contentStyle || '未设置'}
-主要话题领域：${accountInfo.mainTopics ? (accountInfo.mainTopics as string[]).join('、') : '未设置'}
+主要话题领域：${accountInfo.mainTopics ? (JSON.parse(accountInfo.mainTopics) as string[]).join('、') : '未设置'}
 语言风格偏好：${accountInfo.tonePreference || '未设置'}
 ` : '';
 

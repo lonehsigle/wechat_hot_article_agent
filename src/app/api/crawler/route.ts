@@ -281,13 +281,13 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
       authorName: post.authorName,
       authorAvatar: post.authorAvatar,
       coverImage: post.coverImage,
-      images: post.images,
+      images: JSON.stringify(post.images),
       likeCount: post.likeCount,
       commentCount: post.commentCount,
       shareCount: post.shareCount,
       collectCount: post.collectCount,
       viewCount: post.viewCount,
-      tags: post.tags,
+      tags: JSON.stringify(post.tags),
       category: post.category,
       fetchedAt: new Date(),
     }).returning();
@@ -337,7 +337,7 @@ async function crawlPost(platform: string, postId: string) {
     authorName: mockPost.authorName,
     authorAvatar: mockPost.authorAvatar,
     coverImage: mockPost.coverImage,
-    images: mockPost.images,
+    images: JSON.stringify(mockPost.images),
     videoUrl: mockPost.videoUrl,
     likeCount: mockPost.likeCount,
     commentCount: mockPost.commentCount,
@@ -345,7 +345,7 @@ async function crawlPost(platform: string, postId: string) {
     collectCount: mockPost.collectCount,
     viewCount: mockPost.viewCount,
     publishTime: mockPost.publishTime,
-    tags: mockPost.tags,
+    tags: JSON.stringify(mockPost.tags),
     category: mockPost.category,
     fetchedAt: new Date(),
   }).returning();
@@ -395,7 +395,7 @@ async function crawlComments(postId: number, includeReplies: boolean = true) {
       isAuthor: comment.isAuthor,
       publishTime: comment.publishTime,
       sentiment: comment.sentiment,
-      keywords: comment.keywords,
+      keywords: JSON.stringify(comment.keywords),
       fetchedAt: new Date(),
     }).returning();
     insertedComments.push(saved);
@@ -448,7 +448,7 @@ async function crawlCreatorPosts(creatorId: number) {
       coverImage: post.coverImage,
       likeCount: post.likeCount,
       commentCount: post.commentCount,
-      tags: post.tags,
+      tags: JSON.stringify(post.tags),
       fetchedAt: new Date(),
     }).returning();
     insertedPosts.push(saved);
@@ -523,8 +523,8 @@ async function generateWordCloud(postId: number) {
     positiveCount,
     negativeCount,
     neutralCount,
-    topKeywords,
-    topEmojis,
+    topKeywords: JSON.stringify(topKeywords),
+    topEmojis: JSON.stringify(topEmojis),
     sentimentScore,
     generatedAt: new Date(),
   }).returning();

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import styles from '../styles';
+import styles from '../../styles';
 
 interface WechatAccount {
   id: string;

@@ -264,6 +264,7 @@ export default function PendingPublishPage({ onPreview }: PendingPublishPageProp
         setArticles(data.articles);
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to load articles:', error);
     } finally {
       setLoading(false);
