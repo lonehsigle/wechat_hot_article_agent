@@ -71,7 +71,7 @@ export default function LandingPage() {
       errors.email = '请输入有效的邮箱地址';
     }
     if (!formData.password.trim()) errors.password = '请输入密码';
-    if (formData.password.trim() && formData.password.length < 6) errors.password = '密码至少6位';
+    if (formData.password.trim() && formData.password.length < 8) errors.password = '密码至少8位';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };

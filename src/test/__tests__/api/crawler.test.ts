@@ -41,6 +41,7 @@ describe('/api/crawler', () => {
     vi.clearAllMocks();
     mockDbQueue = [];
     mockDbDefault = [];
+    delete process.env.ALLOW_DEMO_DATA;
   });
 
   describe('GET', () => {
@@ -312,7 +313,28 @@ describe('/api/crawler', () => {
   });
 
   describe('POST', () => {
-    it('should search posts successfully without cookie', async () => {
+    it('should block demo search data by default when no cookie is configured', async () => {
+      const { POST } = await import('@/app/api/crawler/route');
+      mockDbQueue.push([{ id: 1, platform: 'weibo', status: 'running' }]);
+      mockDbQueue.push([]);
+
+      const req = createRequest('http://localhost/api/crawler', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'search', platform: 'weibo', keyword: 'test', limit: 2 }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('当前已禁用演示数据');
+      expect(data.isRealData).toBe(false);
+    });
+
+    it('should search posts with demo data only when explicitly enabled', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1, platform: 'weibo', status: 'running' }]);
       mockDbDefault = [{ id: 999 }];
@@ -438,6 +460,7 @@ describe('/api/crawler', () => {
     });
 
     it('should crawl post successfully', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1, platform: 'weibo', status: 'running' }]);
       mockDbQueue.push([{ id: 1 }]);
@@ -454,6 +477,25 @@ describe('/api/crawler', () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
+    });
+
+    it('should block demo post detail data by default', async () => {
+      const { POST } = await import('@/app/api/crawler/route');
+      mockDbQueue.push([{ id: 1, platform: 'weibo', status: 'running' }]);
+      mockDbQueue.push([]);
+
+      const req = createRequest('http://localhost/api/crawler', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'crawl-post', platform: 'weibo', postId: '123' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('当前已禁用演示数据');
     });
 
     it('should return 400 when crawl-post missing params', async () => {
@@ -489,6 +531,7 @@ describe('/api/crawler', () => {
     });
 
     it('should crawl comments successfully', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1, platform: 'weibo' }]);
       mockDbDefault = [{ id: 999 }];
@@ -505,6 +548,24 @@ describe('/api/crawler', () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.total).toBeGreaterThan(0);
+    });
+
+    it('should block demo comment data by default', async () => {
+      const { POST } = await import('@/app/api/crawler/route');
+      mockDbQueue.push([{ id: 1, platform: 'weibo' }]);
+
+      const req = createRequest('http://localhost/api/crawler', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'crawl-comments', postId: 1, includeReplies: true }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('当前已禁用演示数据');
     });
 
     it('should return 400 when crawl-comments missing postId', async () => {
@@ -607,6 +668,7 @@ describe('/api/crawler', () => {
     });
 
     it('should crawl creator successfully', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1, platform: 'weibo', creatorId: 'c1', name: 'Creator' }]);
       mockDbDefault = [{ id: 999 }];
@@ -623,6 +685,24 @@ describe('/api/crawler', () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.total).toBeGreaterThan(0);
+    });
+
+    it('should block demo creator posts by default', async () => {
+      const { POST } = await import('@/app/api/crawler/route');
+      mockDbQueue.push([{ id: 1, platform: 'weibo', creatorId: 'c1', name: 'Creator' }]);
+
+      const req = createRequest('http://localhost/api/crawler', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'crawl-creator', creatorId: 1 }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('当前已禁用演示数据');
     });
 
     it('should return 400 when crawl-creator missing creatorId', async () => {
@@ -746,6 +826,7 @@ describe('/api/crawler', () => {
     });
 
     it('should batch crawl with keywords', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1 }]);
       mockDbDefault = [{ id: 999 }];
@@ -765,6 +846,7 @@ describe('/api/crawler', () => {
     });
 
     it('should batch crawl with postIds', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/crawler/route');
       mockDbQueue.push([{ id: 1 }]);
       mockDbQueue.push([{ id: 101 }]);
@@ -782,6 +864,33 @@ describe('/api/crawler', () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.results.crawledPosts).toBe(1);
+    });
+
+    it('should not generate demo records in batch crawl by default', async () => {
+      const { POST } = await import('@/app/api/crawler/route');
+      mockDbQueue.push([{ id: 1 }]);
+      mockDbQueue.push([]);
+      mockDbQueue.push([{ id: 2 }]);
+      mockDbQueue.push([]);
+
+      const req = createRequest('http://localhost/api/crawler', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'batch-crawl',
+          platform: 'weibo',
+          keywords: ['test'],
+          postIds: ['p1'],
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.results.searchedPosts).toBe(0);
+      expect(data.results.crawledPosts).toBe(0);
     });
 
     it('should handle error in batch-crawl search', async () => {

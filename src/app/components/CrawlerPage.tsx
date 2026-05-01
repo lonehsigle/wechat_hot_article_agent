@@ -59,6 +59,7 @@ function CrawlerPage() {
   const [currentCookieInput, setCurrentCookieInput] = useState('');
   const [showAddCreatorModal, setShowAddCreatorModal] = useState(false);
   const [newCreatorName, setNewCreatorName] = useState('');
+  const [addingCreator, setAddingCreator] = useState(false);
 
   const platforms = [
     { id: 'xiaohongshu', name: '小红书', icon: '📕', color: '#ff2442' },
@@ -94,7 +95,7 @@ function CrawlerPage() {
         setPosts(data.posts);
         const message = data.isRealData
           ? `真实爬取完成，找到 ${data.total} 条内容`
-          : `演示数据：找到 ${data.total} 条内容。${data.message || ''}`;
+          : `演示模式完成，找到 ${data.total} 条内容。${data.message || ''}`;
         alert(message);
       } else {
         alert(data.error || '搜索失败');
@@ -184,7 +185,7 @@ function CrawlerPage() {
 
   const loadCreators = async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/crawler?action=list-creators');
+      const res = await fetch('/api/crawler?action=list-creators', { signal });
       const data = await res.json();
       if (data.success) {
         setCreators(data.creators);
@@ -192,6 +193,39 @@ function CrawlerPage() {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Load creators failed:', error);
+    }
+  };
+
+  const handleAddCreator = async () => {
+    const input = newCreatorName.trim();
+    if (!input || addingCreator) return;
+
+    setAddingCreator(true);
+    try {
+      const res = await fetch('/api/crawler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add-creator',
+          platform: activePlatform,
+          creatorId: input,
+          name: input,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCreators(prev => [data.creator, ...prev.filter(item => item.id !== data.creator.id)]);
+        setShowAddCreatorModal(false);
+        setNewCreatorName('');
+        alert(`已添加创作者：${data.creator.name}`);
+      } else {
+        alert(data.error || '添加创作者失败');
+      }
+    } catch (error) {
+      console.error('Add creator failed:', error);
+      alert('添加创作者失败');
+    } finally {
+      setAddingCreator(false);
     }
   };
 
@@ -258,7 +292,7 @@ function CrawlerPage() {
         <span style={{ fontSize: '13px', color: '#374151' }}>
           {platformCookies[activePlatform]
             ? `${getPlatformInfo(activePlatform).name} Cookie已配置，可进行真实爬取`
-            : `未配置${getPlatformInfo(activePlatform).name} Cookie，当前使用演示数据。点击右上角"配置Cookie"进行设置`}
+            : `未配置${getPlatformInfo(activePlatform).name} Cookie，实战模式不会生成演示数据。点击右上角"配置Cookie"进行设置`}
         </span>
       </div>
 
@@ -777,18 +811,7 @@ function CrawlerPage() {
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && newCreatorName.trim()) {
-                    const newCreator = {
-                      id: Date.now(),
-                      creatorId: `creator_${Date.now()}`,
-                      name: newCreatorName.trim(),
-                      platform: activePlatform,
-                      followerCount: Math.floor(Math.random() * 100000) + 1000,
-                      postCount: Math.floor(Math.random() * 500) + 10,
-                    };
-                    setCreators([...creators, newCreator]);
-                    setShowAddCreatorModal(false);
-                    setNewCreatorName('');
-                    alert(`已添加创作者：${newCreatorName.trim()}`);
+                    void handleAddCreator();
                   }
                 }}
               />
@@ -809,33 +832,19 @@ function CrawlerPage() {
                 取消
               </button>
               <button
-                onClick={() => {
-                  if (newCreatorName.trim()) {
-                    const newCreator = {
-                      id: Date.now(),
-                      creatorId: `creator_${Date.now()}`,
-                      name: newCreatorName.trim(),
-                      platform: activePlatform,
-                      followerCount: Math.floor(Math.random() * 100000) + 1000,
-                      postCount: Math.floor(Math.random() * 500) + 10,
-                    };
-                    setCreators([...creators, newCreator]);
-                    setShowAddCreatorModal(false);
-                    setNewCreatorName('');
-                    alert(`已添加创作者：${newCreatorName.trim()}`);
-                  }
-                }}
+                onClick={handleAddCreator}
+                disabled={addingCreator || !newCreatorName.trim()}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#10b981',
+                  backgroundColor: addingCreator || !newCreatorName.trim() ? '#9ca3af' : '#10b981',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '14px',
-                  cursor: 'pointer',
+                  cursor: addingCreator || !newCreatorName.trim() ? 'not-allowed' : 'pointer',
                 }}
               >
-                添加
+                {addingCreator ? '添加中...' : '添加'}
               </button>
             </div>
           </div>

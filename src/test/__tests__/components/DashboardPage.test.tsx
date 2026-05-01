@@ -21,7 +21,6 @@ describe('DashboardPage', () => {
     expect(screen.getByText('文章采集')).toBeInTheDocument();
     expect(screen.getByText('公众号采集')).toBeInTheDocument();
     expect(screen.getByText('创作工作台')).toBeInTheDocument();
-    expect(screen.getByText('IP方案')).toBeInTheDocument();
   });
 
   it('renders workflow steps section', async () => {

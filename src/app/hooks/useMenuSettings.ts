@@ -13,7 +13,6 @@ export interface MenuSettings {
   pendingPublish: boolean;
   published: boolean;
   analytics: boolean;
-  ipPlan: boolean;
 }
 
 export function useMenuSettings() {
@@ -28,7 +27,6 @@ export function useMenuSettings() {
     pendingPublish: true,
     published: true,
     analytics: true,
-    ipPlan: true,
   });
   const [menuSettingsSaving, setMenuSettingsSaving] = useState(false);
   const [menuSettingsSaved, setMenuSettingsSaved] = useState(false);

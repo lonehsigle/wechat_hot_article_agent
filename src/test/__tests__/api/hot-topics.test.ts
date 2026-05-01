@@ -44,6 +44,7 @@ describe('/api/hot-topics', () => {
     vi.clearAllMocks();
     mockDbQueue = [];
     mockDbDefault = [];
+    delete process.env.ALLOW_DEMO_DATA;
     vi.stubGlobal('fetch', vi.fn());
   });
 
@@ -321,6 +322,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle weibo fetch exception in catch block', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockRejectedValue(new Error('Weibo fetch failed'));
@@ -340,6 +342,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle non-Error fetch rejection', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockRejectedValue('string error');
@@ -359,6 +362,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should fetch platform topics without cookie using mock data', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       mockDbDefault = [{ id: 1 }];
 
@@ -375,7 +379,25 @@ describe('/api/hot-topics', () => {
       expect(data.success).toBe(true);
     });
 
+    it('should block mock hot topics by default when no cookie is configured', async () => {
+      const { POST } = await import('@/app/api/hot-topics/route');
+
+      const req = createRequest('http://localhost/api/hot-topics', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'fetch-platform', platform: 'weibo' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('当前已禁用演示数据');
+    });
+
     it('should insert mock topics when no cookie and not existing', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       // First select returns empty, then insert, then history
       // Rest use default (existing found → skip)
@@ -541,6 +563,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle douyin fetch error and fallback to mock', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockRejectedValue(new Error('Network error'));
@@ -588,6 +611,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle xiaohongshu fetch error and fallback to mock', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockRejectedValue(new Error('Network error'));
@@ -637,6 +661,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle weibo fetch non-ok and fallback to mock', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockResolvedValue({ ok: false, status: 403 } as Response);
@@ -656,6 +681,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle zhihu fetch non-ok and fallback to mock', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockResolvedValue({ ok: false, status: 403 } as Response);
@@ -703,6 +729,7 @@ describe('/api/hot-topics', () => {
     });
 
     it('should handle baidu fetch non-ok and fallback to mock', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
       fetchMock.mockResolvedValue({ ok: false, status: 403 } as Response);

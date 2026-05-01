@@ -2,11 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, initDatabase } from '@/lib/db';
 import { users, userSessions } from '@/lib/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
-import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createSessionSignature } from '@/lib/session-signature';
 
 initDatabase();
 
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;
+const SESSION_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+
+function setSessionCookies(response: NextResponse, token: string) {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: SESSION_COOKIE_MAX_AGE,
+    path: '/',
+  };
+
+  response.cookies.set('auth_token', token, cookieOptions);
+  response.cookies.set('auth_sig', createSessionSignature(token), cookieOptions);
+}
+
+function clearSessionCookies(response: NextResponse) {
+  response.cookies.delete('auth_token');
+  response.cookies.delete('auth_sig');
+}
 
 // 获取密码哈希salt（可配置）
 function getPasswordSalt(): string {
@@ -127,13 +147,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      response.cookies.set('auth_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60,
-        path: '/',
-      });
+      setSessionCookies(response, token);
 
       return response;
     }
@@ -197,13 +211,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      response.cookies.set('auth_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60,
-        path: '/',
-      });
+      setSessionCookies(response, token);
 
       return response;
     }
@@ -216,7 +224,7 @@ export async function POST(request: NextRequest) {
       }
 
       const response = NextResponse.json({ success: true });
-      response.cookies.delete('auth_token');
+      clearSessionCookies(response);
 
       return response;
     }

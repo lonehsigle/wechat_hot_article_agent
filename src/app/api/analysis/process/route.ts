@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { analysisTasks, analysisArticles, insightReports } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -9,6 +10,21 @@ export async function POST(request: NextRequest) {
   const database = db();
 
   try {
+    if (!isDemoDataAllowed()) {
+      await database.update(analysisTasks)
+        .set({
+          status: 'failed',
+          errorMessage: demoDataDisabledMessage('选题分析后台处理'),
+          completedAt: new Date(),
+        })
+        .where(eq(analysisTasks.id, taskId));
+
+      return NextResponse.json({
+        success: false,
+        error: demoDataDisabledMessage('选题分析后台处理'),
+      }, { status: 501 });
+    }
+
     await database.update(analysisTasks)
       .set({ status: 'processing', startedAt: new Date() })
       .where(eq(analysisTasks.id, taskId));

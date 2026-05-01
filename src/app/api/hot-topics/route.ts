@@ -3,8 +3,10 @@ import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, collectedArticles, articleRewrites } from '@/lib/db/schema';
 import { eq, desc, and, gt, inArray, or, like, sql } from 'drizzle-orm';
 import { apiResponse } from '@/lib/utils/api-helper';
+import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
+const DEMO_DATA_DISABLED_MARKER = '当前已禁用演示数据';
 
 /**
  * Redis 风格的内存缓存实现
@@ -45,6 +47,14 @@ class MemoryCache {
 
 const hotTopicsCache = new MemoryCache();
 const CACHE_TTL_SECONDS = 5 * 60; // 5分钟缓存
+
+function deterministicScore(input: string, min: number, max: number): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return min + (hash % (max - min + 1));
+}
 
 /**
  * 计算预测增长率 - 基于热度值和排名趋势的简单算法
@@ -202,7 +212,7 @@ export async function POST(request: NextRequest) {
         total: results.length,
         topics: results,
         isRealData: hasRealData,
-        message: hasRealData ? undefined : '未配置 Cookie，使用演示数据',
+        message: hasRealData ? undefined : '未获取到真实热点数据',
       }));
     }
 
@@ -239,7 +249,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(apiResponse.error('Invalid action'), { status: 400 });
   } catch (error) {
     console.error('Hot topics API error:', error);
-    return NextResponse.json(apiResponse.error(error instanceof Error ? error.message : '操作失败'), { status: 500 });
+    const message = error instanceof Error ? error.message : '操作失败';
+    const status = message.includes(DEMO_DATA_DISABLED_MARKER) ? 501 : 500;
+    return NextResponse.json(apiResponse.error(message), { status });
   }
 }
 
@@ -315,6 +327,10 @@ async function fetchPlatformTopics(platform: string, cookie?: string) {
     }
   } else {
     fallbackReason = '未配置 Cookie';
+  }
+
+  if (!isDemoDataAllowed()) {
+    throw new Error(demoDataDisabledMessage(`热点平台 ${platform}`));
   }
 
   const mockTopics = generateMockHotTopics(platform, fallbackReason);
@@ -489,7 +505,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
                     title: item.Title || item.title || '抖音热点',
                     description: item.LabelDesc || '',
                     url: item.Url || `https://www.douyin.com/search/${encodeURIComponent(item.Title || '')}`,
-                    hotValue: item.HotValue || Math.floor(Math.random() * 5000000) + 100000,
+                    hotValue: item.HotValue || deterministicScore(item.Title || item.title || 'douyin', 100000, 5000000),
                     rank: i + 1,
                     category: item.Label || '娱乐',
                     tags: JSON.stringify([item.Label || '抖音', '短视频']),
@@ -534,7 +550,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
                   title: item.query || item.title || '小红书热点',
                   description: '',
                   url: `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(item.query || '')}`,
-                  hotValue: Math.floor(Math.random() * 2000000) + 50000,
+                  hotValue: deterministicScore(item.query || item.title || 'xiaohongshu', 50000, 2000000),
                   rank: i + 1,
                   category: '生活',
                   tags: JSON.stringify(['小红书', '生活']),

@@ -31,7 +31,6 @@ import TopicAnalysisPage from '../components/TopicAnalysisPage';
 import StyleAnalyzerPage from '../components/StyleAnalyzerPage';
 import AnalyticsPanel from '../components/AnalyticsPanel';
 import PublishedArticlesPage from '../components/PublishedArticlesPage';
-import IPPlanPage from '../components/IPPlanPage';
 
 import { useAuth } from '../hooks/useAuth';
 import { useWechatAccounts } from '../hooks/useWechatAccounts';
@@ -151,76 +150,6 @@ interface LLMConfig {
   hasApiKey?: boolean;
 }
 
-const mockCategories: MonitorCategory[] = [
-  {
-    id: '1',
-    name: 'Claude Code 选题监控',
-    platforms: ['抖音', '小红书', '微博', 'B站'],
-    keywords: ['Claude Code', 'AI编程', 'Cursor', 'Vibe Coding'],
-    creators: ['老胡', '科技麦芒', '程序员子循'],
-    contents: [
-      { id: '1', platform: '小红书', title: 'Claude Code 实战测评，真的能替代程序员？', author: '科技麦芒', date: '2026-03-28', likes: 12580, comments: 892, shares: 2341, url: '#' },
-      { id: '2', platform: 'B站', title: '【AI编程】Claude Code 完整教程，从入门到精通', author: '程序员子循', date: '2026-03-28', likes: 8960, comments: 1247, shares: 890, url: '#' },
-      { id: '3', platform: '抖音', title: 'AI编程工具大比拼，Claude Code表现惊艳', author: '科技侦探', date: '2026-03-27', likes: 23400, comments: 3201, shares: 5670, url: '#' },
-      { id: '4', platform: '微博', title: 'Claude Code 掀起编程革命，程序员该何去何从', author: '互联网那些事', date: '2026-03-27', likes: 15600, comments: 2100, shares: 4500, url: '#' },
-      { id: '5', platform: '小红书', title: '用Claude Code一天做完了我的毕业设计', author: '码农小李', date: '2026-03-26', likes: 8900, comments: 678, shares: 1200, url: '#' },
-      { id: '6', platform: 'B站', title: 'Vibe Coding 会让程序员失业吗？', author: '老胡', date: '2026-03-26', likes: 15600, comments: 2340, shares: 1890, url: '#' },
-    ],
-    reports: [
-      {
-        id: '1',
-        date: '2026-03-28',
-        title: 'Claude Code 选题分析报告',
-        summary: '今日关于 Claude Code 的讨论热度较昨日上涨 35%，主要集中在 AI 编程工具测评和职业影响分析两个方向。',
-        insights: [
-          { type: 'trend', content: 'AI 编程工具类内容持续升温，用户对"替代vs辅助"话题关注度最高' },
-          { type: 'hot', content: '"一天完成毕业设计"成为爆款标题，引发大量学生群体共鸣' },
-          { type: 'recommendation', content: '建议关注：AI 编程工作流的实际应用场景拆解' },
-        ],
-        topics: [
-          { id: '1', title: 'AI 编程工具平民化', description: '越来越多普通用户开始使用 AI 编程工具完成日常任务，如毕设、脚本编写等。', reason: '工具门槛降低，普通用户也能轻松上手', potential: '覆盖学生、运营、产品等非技术人群，增长空间大' },
-          { id: '2', title: '程序员职业焦虑', description: '关于 AI 是否会取代程序员的讨论持续发酵，引发大量程序员群体的关注和讨论。', reason: '技术从业者对职业发展的担忧和思考', potential: '职场/职业发展类内容受众广，易引发共鸣' },
-          { id: '3', title: 'Vibe Coding 概念兴起', description: '"Vibe Coding"作为新兴概念，正在获得科技圈的广泛讨论和传播。', reason: '符合当下科技圈对新概念的追捧', potential: '新概念早期红利期，值得重点布局' },
-        ],
-      },
-      {
-        id: '2',
-        date: '2026-03-27',
-        title: '选题洞察日报',
-        summary: 'AI 编程相关内容继续保持高热度，海外爆款内容的本土化改编效果显著。',
-        insights: [
-          { type: 'trend', content: '海外科技内容的本土化改编成为热门内容形式' },
-          { type: 'hot', content: '短视频形式的 AI 工具测评比长视频更受欢迎' },
-          { type: 'recommendation', content: '建议增加对海外热门内容的跟进速度' },
-        ],
-        topics: [
-          { id: '1', title: 'AI 编程实操教程', description: '从入门到实战的系统性教程类内容。', reason: '用户需求明确，变现路径清晰', potential: '可系列化运营，粉丝粘性高' },
-        ],
-      },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Vibe Coding 选题监控',
-    platforms: ['抖音', 'B站', '小红书'],
-    keywords: ['Vibe Coding', 'AI编程', 'Natural Language Programming'],
-    creators: ['老胡', '硅星人家'],
-    contents: [
-      { id: '7', platform: 'B站', title: '什么是 Vibe Coding？一种全新的编程范式', author: '硅星人家', date: '2026-03-28', likes: 5600, comments: 445, shares: 320, url: '#' },
-      { id: '8', platform: '抖音', title: '用说话的方式写代码，Vibe Coding 体验', author: '老胡', date: '2026-03-27', likes: 18900, comments: 1560, shares: 3400, url: '#' },
-    ],
-    reports: [],
-  },
-];
-
-const mockTopics: SelectedTopic[] = [
-  { id: '1', title: 'Claude Code 实战测评，真的能替代程序员？', source: '小红书', likes: 12580, selected: false },
-  { id: '2', title: 'AI编程工具大比拼，Claude Code表现惊艳', source: '抖音', likes: 23400, selected: false },
-  { id: '3', title: '程序员职业焦虑：AI是否会取代程序员', source: '微博', likes: 15600, selected: false },
-  { id: '4', title: 'Vibe Coding 会让程序员失业吗？', source: 'B站', likes: 15600, selected: false },
-  { id: '5', title: '用Claude Code一天做完了我的毕业设计', source: '小红书', likes: 8900, selected: false },
-];
-
 interface PublishedArticle {
   id: number;
   title: string;
@@ -245,6 +174,64 @@ interface ArticleStat {
   likeGrowth: number;
 }
 
+function TagList({
+  items,
+  emptyText,
+  onRemove,
+  disabled,
+}: {
+  items: string[];
+  emptyText: string;
+  onRemove: (item: string) => void;
+  disabled?: boolean;
+}) {
+  if (items.length === 0) {
+    return (
+      <div style={{ fontSize: '13px', color: '#9ca3af', padding: '10px 12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+        {emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+      {items.map(item => (
+        <span
+          key={item}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 8px',
+            borderRadius: '6px',
+            backgroundColor: '#f3f4f6',
+            color: '#374151',
+            fontSize: '13px',
+          }}
+        >
+          {item}
+          <button
+            type="button"
+            onClick={() => onRemove(item)}
+            disabled={disabled}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#6b7280',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              padding: 0,
+              lineHeight: 1,
+              fontSize: '14px',
+            }}
+            aria-label={`删除${item}`}
+          >
+            x
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export default function AppPage() {
   const router = useRouter();
@@ -277,13 +264,14 @@ export default function AppPage() {
     deleteMaterial,
   } = useMaterials();
 
-  const [categories, setCategories] = useState<MonitorCategory[]>(mockCategories);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categories[0]?.id || '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'optimization' | 'ipPlan'>('dashboard');
+  const [categories, setCategories] = useState<MonitorCategory[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [categoryContentsLoading, setCategoryContentsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'optimization'>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('2026-03-28');
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   const [imageSources, setImageSources] = useState<ImageSourceConfig>({
     aiGenerated: true,
@@ -298,7 +286,7 @@ export default function AppPage() {
     template: string;
     exampleTitles: string[];
   }>>([]);
-  const [topics, setTopics] = useState<SelectedTopic[]>(mockTopics);
+  const [topics, setTopics] = useState<SelectedTopic[]>([]);
   const [articleDrafts, setArticleDrafts] = useState<ArticleDraft[]>([]);
   const [editingAccount, setEditingAccount] = useState<WechatAccount | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -307,13 +295,16 @@ export default function AppPage() {
     apiKey: '',
     model: 'MiniMax-M2.7',
   });
-  const [settingsTab, setSettingsTab] = useState<'wechat' | 'api' | 'menu' | 'prompts'>('wechat');
+  const [settingsTab, setSettingsTab] = useState<'wechat' | 'api' | 'categories' | 'menu' | 'prompts'>('wechat');
   const [promptsConfig, setPromptsConfig] = useState<Array<{ key: string; name: string; description: string; template: string }>>([]);
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [showAddKeywordModal, setShowAddKeywordModal] = useState(false);
   const [showAddCreatorModalSettings, setShowAddCreatorModalSettings] = useState(false);
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newPlatformName, setNewPlatformName] = useState('');
   const [evaluationInput, setEvaluationInput] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<{
@@ -535,6 +526,237 @@ export default function AppPage() {
     loadBenchmarkAccounts();
   }, []);
 
+  const parseStringArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+    if (typeof value !== 'string' || !value.trim()) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return value.split(',').map(item => item.trim()).filter(Boolean);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      const rawCategories = data.success ? data.data : [];
+      if (!Array.isArray(rawCategories)) return;
+
+      const normalized: MonitorCategory[] = rawCategories.map((category: {
+        id: number | string;
+        name: string;
+        platforms?: unknown;
+        keywords?: unknown;
+        creators?: unknown;
+      }) => ({
+        id: String(category.id),
+        name: category.name,
+        platforms: parseStringArray(category.platforms),
+        keywords: parseStringArray(category.keywords),
+        creators: parseStringArray(category.creators),
+        contents: [],
+        reports: [],
+      }));
+
+      setCategories(normalized);
+      setSelectedCategoryId(current => current || normalized[0]?.id || '');
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
+
+  const normalizeContent = (item: {
+    id: number | string;
+    platform?: string | null;
+    title?: string | null;
+    author?: string | null;
+    date?: string | Date | null;
+    likeCount?: number | null;
+    likes?: number | null;
+    commentCount?: number | null;
+    comments?: number | null;
+    shareCount?: number | null;
+    shares?: number | null;
+    url?: string | null;
+  }): Content => ({
+    id: String(item.id),
+    platform: item.platform || '未知',
+    title: item.title || '未命名内容',
+    author: item.author || '未知作者',
+    date: item.date ? String(item.date).split('T')[0] : '',
+    likes: item.likeCount ?? item.likes ?? 0,
+    comments: item.commentCount ?? item.comments ?? 0,
+    shares: item.shareCount ?? item.shares ?? 0,
+    url: item.url || '#',
+  });
+
+  const loadCategoryContents = async (categoryId: string) => {
+    if (!categoryId) return;
+    setCategoryContentsLoading(true);
+    try {
+      const res = await fetch(`/api/contents?categoryId=${encodeURIComponent(categoryId)}&limit=100`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '加载分类内容失败');
+      }
+      const loadedContents: Content[] = Array.isArray(data.data?.contents)
+        ? data.data.contents.map(normalizeContent)
+        : [];
+      setCategories(prev => prev.map(category => (
+        category.id === categoryId ? { ...category, contents: loadedContents } : category
+      )));
+      setSelectedDate(current => {
+        if (current && loadedContents.some(content => content.date === current)) return current;
+        return [...new Set(loadedContents.map(content => content.date).filter(Boolean))].sort().reverse()[0] || '';
+      });
+    } catch (error) {
+      console.error('Failed to load category contents:', error);
+    } finally {
+      setCategoryContentsLoading(false);
+    }
+  };
+
+  const createCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) {
+      alert('请输入分类名称');
+      return;
+    }
+
+    setCategorySaving(true);
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          platforms: [],
+          keywords: [],
+          creators: [],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '创建分类失败');
+      }
+
+      const category = data.data;
+      const normalized: MonitorCategory = {
+        id: String(category.id),
+        name: category.name,
+        platforms: parseStringArray(category.platforms),
+        keywords: parseStringArray(category.keywords),
+        creators: parseStringArray(category.creators),
+        contents: [],
+        reports: [],
+      };
+      setCategories(prev => [normalized, ...prev]);
+      setSelectedCategoryId(normalized.id);
+      setNewCategoryName('');
+    } catch (error) {
+      console.error('Failed to create category:', error);
+      alert(error instanceof Error ? error.message : '创建失败，请重试');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const deleteCategory = async (categoryId: string) => {
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return;
+    if (!confirm(`确定删除分类「${category.name}」？`)) return;
+
+    setCategorySaving(true);
+    try {
+      const res = await fetch(`/api/categories?id=${encodeURIComponent(categoryId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '删除分类失败');
+      }
+
+      setCategories(prev => {
+        const next = prev.filter(cat => cat.id !== categoryId);
+        setSelectedCategoryId(current => (current === categoryId ? next[0]?.id || '' : current));
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      alert(error instanceof Error ? error.message : '删除失败，请重试');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const updateCategoryLists = async (
+    categoryId: string,
+    updates: Partial<Pick<MonitorCategory, 'keywords' | 'creators' | 'platforms'>>
+  ) => {
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return;
+
+    const nextCategory = { ...category, ...updates };
+    setCategories(prev => prev.map(cat => (cat.id === categoryId ? nextCategory : cat)));
+    setCategorySaving(true);
+
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: Number(categoryId),
+          name: nextCategory.name,
+          platforms: nextCategory.platforms,
+          keywords: nextCategory.keywords,
+          creators: nextCategory.creators,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '保存分类失败');
+      }
+    } catch (error) {
+      console.error('Failed to update category:', error);
+      setCategories(prev => prev.map(cat => (cat.id === categoryId ? category : cat)));
+      alert(error instanceof Error ? error.message : '保存失败，请重试');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleAddKeyword = async (keyword: string) => {
+    if (!selectedCategory || !keyword.trim()) return;
+    const nextKeywords = Array.from(new Set([...selectedCategory.keywords, keyword.trim()]));
+    await updateCategoryLists(selectedCategory.id, { keywords: nextKeywords });
+    setShowAddKeywordModal(false);
+  };
+
+  const handleAddCreatorToCategory = async (creator: string) => {
+    if (!selectedCategory || !creator.trim()) return;
+    const nextCreators = Array.from(new Set([...selectedCategory.creators, creator.trim()]));
+    await updateCategoryLists(selectedCategory.id, { creators: nextCreators });
+    setShowAddCreatorModalSettings(false);
+  };
+
+  const handleAddPlatformToCategory = async () => {
+    if (!selectedCategory || !newPlatformName.trim()) return;
+    const nextPlatforms = Array.from(new Set([...selectedCategory.platforms, newPlatformName.trim()]));
+    await updateCategoryLists(selectedCategory.id, { platforms: nextPlatforms });
+    setNewPlatformName('');
+  };
+
+  const removeCategoryListItem = async (
+    field: 'platforms' | 'keywords' | 'creators',
+    value: string
+  ) => {
+    if (!selectedCategory) return;
+    const nextValues = selectedCategory[field].filter(item => item !== value);
+    await updateCategoryLists(selectedCategory.id, { [field]: nextValues });
+  };
+
   const handleEvaluate = async () => {
     if (!evaluationInput.trim()) return;
     setEvaluating(true);
@@ -561,8 +783,16 @@ export default function AppPage() {
     loadLLMConfig();
     loadMenuSettings();
     loadImageSources();
+    loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedCategoryId) {
+      loadCategoryContents(selectedCategoryId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategoryId]);
 
   const loadLLMConfig = async () => {
     try {
@@ -593,8 +823,8 @@ export default function AppPage() {
 
   const filteredContents = selectedCategory?.contents.filter(c => {
     if (selectedPlatform && c.platform !== selectedPlatform) return false;
-    if (c.date === selectedDate) return true;
-    return false;
+    if (selectedDate && c.date !== selectedDate) return false;
+    return true;
   }) || [];
 
   const selectedTopics = topics.filter(t => t.selected);
@@ -862,6 +1092,22 @@ export default function AppPage() {
               {!sidebarCollapsed && <span>文章采集</span>}
             </button>
           )}
+
+          {menuSettings.wechatCollect && (
+            <button
+              style={{
+                ...styles.tabItem,
+                ...(activeTab === 'content' ? styles.tabItemActive : {}),
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                padding: sidebarCollapsed ? '12px 0' : '12px',
+              }}
+              onClick={() => setActiveTab('content')}
+              title={sidebarCollapsed ? '内容库' : ''}
+            >
+              <span style={styles.tabIcon}>📚</span>
+              {!sidebarCollapsed && <span>内容库</span>}
+            </button>
+          )}
           
           {menuSettings.wechatAccount && (
             <button
@@ -895,25 +1141,9 @@ export default function AppPage() {
             </button>
           )}
           
-          {(menuSettings.topicAnalysis || menuSettings.create || menuSettings.published || menuSettings.ipPlan) && (
+          {(menuSettings.topicAnalysis || menuSettings.create || menuSettings.published) && (
             <div style={styles.menuGroup}>
               {!sidebarCollapsed && <div style={styles.menuGroupTitle}>✍️ 创作</div>}
-              {menuSettings.ipPlan && (
-                <button
-                  style={{ 
-                    ...styles.tabItem, 
-                    ...styles.subMenuItem, 
-                    ...(activeTab === 'ipPlan' ? styles.tabItemActive : {}),
-                    justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                    padding: sidebarCollapsed ? '10px 0' : '10px 12px 10px 24px',
-                  }}
-                  onClick={() => setActiveTab('ipPlan')}
-                  title={sidebarCollapsed ? 'IP方案' : ''}
-                >
-                  <span>🎯</span>
-                  {!sidebarCollapsed && <span style={{ marginLeft: '6px' }}>IP方案</span>}
-                </button>
-              )}
               {menuSettings.topicAnalysis && (
                 <button
                   style={{ 
@@ -1048,6 +1278,7 @@ export default function AppPage() {
           {activeTab === 'hotTopics' && '热门选题'}
           {activeTab === 'crawler' && '爬虫管理'}
           {activeTab === 'wechatCollect' && '文章采集'}
+          {activeTab === 'content' && '内容库'}
           {activeTab === 'wechatAccount' && '公众号采集'}
           {activeTab === 'topicAnalysis' && '选题分析'}
           {activeTab === 'create' && '创作工作台'}
@@ -1056,7 +1287,6 @@ export default function AppPage() {
           {activeTab === 'optimization' && '闭环优化'}
           {activeTab === 'settings' && '系统设置'}
           {activeTab === 'styles' && '写作风格'}
-          {activeTab === 'ipPlan' && 'IP方案'}
         </span>
         <div style={{ width: '40px' }} />
       </header>
@@ -1085,6 +1315,115 @@ export default function AppPage() {
           <WechatCollectPage mode="collect" />
         )}
 
+        {activeTab === 'content' && (
+          <div style={styles.contentWrapper}>
+            <div style={styles.settingsHeader}>
+              <div>
+                <h2 style={styles.settingsPageTitle}>📚 内容库</h2>
+                <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                  查看当前监控分类下的真实采集内容。
+                </p>
+              </div>
+              <button
+                onClick={() => selectedCategoryId && loadCategoryContents(selectedCategoryId)}
+                disabled={!selectedCategoryId || categoryContentsLoading}
+                style={{ ...styles.addBtn, opacity: categoryContentsLoading ? 0.7 : 1 }}
+              >
+                {categoryContentsLoading ? '刷新中...' : '刷新内容'}
+              </button>
+            </div>
+
+            <div style={styles.settingsCard}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 180px', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label style={styles.formLabel}>监控分类</label>
+                  <select
+                    value={selectedCategoryId}
+                    onChange={(e) => {
+                      setSelectedCategoryId(e.target.value);
+                      setSelectedDate('');
+                      setSelectedPlatform(null);
+                    }}
+                    style={styles.formSelect}
+                  >
+                    <option value="">请选择分类</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={styles.formLabel}>日期</label>
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={styles.formSelect}
+                    disabled={allDates.length === 0}
+                  >
+                    <option value="">全部日期</option>
+                    {allDates.map(date => (
+                      <option key={date} value={date}>{date}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={styles.formLabel}>平台</label>
+                  <select
+                    value={selectedPlatform || ''}
+                    onChange={(e) => setSelectedPlatform(e.target.value || null)}
+                    style={styles.formSelect}
+                    disabled={!selectedCategory}
+                  >
+                    <option value="">全部平台</option>
+                    {Array.from(new Set(selectedCategory?.contents.map(content => content.platform).filter(Boolean) || [])).map(platform => (
+                      <option key={platform} value={platform}>{platform}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {categoryContentsLoading ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>内容加载中...</div>
+              ) : filteredContents.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '10px', fontSize: '12px', color: '#6b7280' }}>标题</th>
+                        <th style={{ textAlign: 'left', padding: '10px', fontSize: '12px', color: '#6b7280' }}>平台</th>
+                        <th style={{ textAlign: 'left', padding: '10px', fontSize: '12px', color: '#6b7280' }}>作者</th>
+                        <th style={{ textAlign: 'right', padding: '10px', fontSize: '12px', color: '#6b7280' }}>点赞</th>
+                        <th style={{ textAlign: 'right', padding: '10px', fontSize: '12px', color: '#6b7280' }}>评论</th>
+                        <th style={{ textAlign: 'left', padding: '10px', fontSize: '12px', color: '#6b7280' }}>日期</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredContents.map(content => (
+                        <tr key={content.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '12px 10px', fontSize: '14px', color: '#1f2937', maxWidth: '420px' }}>
+                            <a href={content.url} target="_blank" rel="noreferrer" style={{ color: '#1f2937', textDecoration: 'none' }}>
+                              {content.title}
+                            </a>
+                          </td>
+                          <td style={{ padding: '12px 10px', fontSize: '13px', color: '#6b7280' }}>{content.platform}</td>
+                          <td style={{ padding: '12px 10px', fontSize: '13px', color: '#6b7280' }}>{content.author}</td>
+                          <td style={{ padding: '12px 10px', fontSize: '13px', color: '#6b7280', textAlign: 'right' }}>{content.likes}</td>
+                          <td style={{ padding: '12px 10px', fontSize: '13px', color: '#6b7280', textAlign: 'right' }}>{content.comments}</td>
+                          <td style={{ padding: '12px 10px', fontSize: '13px', color: '#6b7280' }}>{content.date || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                  {selectedCategoryId ? '该分类暂无采集内容。' : '请选择一个监控分类。'}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'wechatAccount' && (
           <WechatCollectPage mode="account" />
         )}
@@ -1111,6 +1450,12 @@ export default function AppPage() {
                 onClick={() => setSettingsTab('api')}
               >
                 🤖 API 配置
+              </button>
+              <button
+                style={{ ...styles.settingsTab, ...(settingsTab === 'categories' ? styles.settingsTabActive : {}) }}
+                onClick={() => setSettingsTab('categories')}
+              >
+                🗂️ 监控分类
               </button>
               <button
                 style={{ ...styles.settingsTab, ...(settingsTab === 'menu' ? styles.settingsTabActive : {}) }}
@@ -1526,6 +1871,169 @@ export default function AppPage() {
               </div>
             )}
 
+            {settingsTab === 'categories' && (
+              <div style={styles.settingsSection}>
+                <div style={styles.settingsCard}>
+                  <div style={styles.settingsCardHeader}>
+                    <h3 style={styles.settingsCardTitle}>🗂️ 监控分类管理</h3>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '16px' }}>
+                    <div style={{ borderRight: '1px solid #e5e7eb', paddingRight: '16px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') createCategory();
+                          }}
+                          placeholder="新分类名称"
+                          style={{ ...styles.formInput, marginBottom: 0 }}
+                          disabled={categorySaving}
+                        />
+                        <button
+                          onClick={createCategory}
+                          disabled={categorySaving}
+                          style={{ ...styles.addBtn, whiteSpace: 'nowrap', opacity: categorySaving ? 0.7 : 1 }}
+                        >
+                          新建
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        {categories.map(category => (
+                          <button
+                            key={category.id}
+                            onClick={() => setSelectedCategoryId(category.id)}
+                            style={{
+                              textAlign: 'left',
+                              padding: '10px 12px',
+                              border: `1px solid ${selectedCategoryId === category.id ? '#3b82f6' : '#e5e7eb'}`,
+                              borderRadius: '8px',
+                              backgroundColor: selectedCategoryId === category.id ? '#eff6ff' : '#fff',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>{category.name}</div>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                              {category.keywords.length} 关键词 · {category.creators.length} 创作者
+                            </div>
+                          </button>
+                        ))}
+                        {categories.length === 0 && (
+                          <div style={{ fontSize: '13px', color: '#6b7280', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                            暂无分类，先新建一个监控分类。
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      {selectedCategory ? (
+                        <div style={{ display: 'grid', gap: '18px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start' }}>
+                            <div>
+                              <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2937', marginBottom: '4px' }}>
+                                {selectedCategory.name}
+                              </h4>
+                              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                管理该分类的监控平台、关键词和创作者。
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deleteCategory(selectedCategory.id)}
+                              disabled={categorySaving}
+                              style={{
+                                padding: '8px 12px',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                backgroundColor: '#fef2f2',
+                                color: '#dc2626',
+                                cursor: categorySaving ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              删除分类
+                            </button>
+                          </div>
+
+                          <div>
+                            <label style={styles.formLabel}>监控平台</label>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                              <input
+                                type="text"
+                                value={newPlatformName}
+                                onChange={(e) => setNewPlatformName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleAddPlatformToCategory();
+                                }}
+                                placeholder="例如：公众号、微博、小红书"
+                                style={{ ...styles.formInput, marginBottom: 0 }}
+                                disabled={categorySaving}
+                              />
+                              <button
+                                onClick={handleAddPlatformToCategory}
+                                disabled={categorySaving}
+                                style={{ ...styles.addBtn, whiteSpace: 'nowrap', opacity: categorySaving ? 0.7 : 1 }}
+                              >
+                                添加平台
+                              </button>
+                            </div>
+                            <TagList
+                              items={selectedCategory.platforms}
+                              emptyText="暂无平台"
+                              onRemove={(item) => removeCategoryListItem('platforms', item)}
+                              disabled={categorySaving}
+                            />
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <label style={{ ...styles.formLabel, marginBottom: 0 }}>关键词</label>
+                              <button
+                                onClick={() => setShowAddKeywordModal(true)}
+                                disabled={categorySaving}
+                                style={{ ...styles.addBtn, opacity: categorySaving ? 0.7 : 1 }}
+                              >
+                                添加关键词
+                              </button>
+                            </div>
+                            <TagList
+                              items={selectedCategory.keywords}
+                              emptyText="暂无关键词"
+                              onRemove={(item) => removeCategoryListItem('keywords', item)}
+                              disabled={categorySaving}
+                            />
+                          </div>
+
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <label style={{ ...styles.formLabel, marginBottom: 0 }}>创作者</label>
+                              <button
+                                onClick={() => setShowAddCreatorModalSettings(true)}
+                                disabled={categorySaving}
+                                style={{ ...styles.addBtn, opacity: categorySaving ? 0.7 : 1 }}
+                              >
+                                添加创作者
+                              </button>
+                            </div>
+                            <TagList
+                              items={selectedCategory.creators}
+                              emptyText="暂无创作者"
+                              onRemove={(item) => removeCategoryListItem('creators', item)}
+                              disabled={categorySaving}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '14px', color: '#6b7280', padding: '24px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                          请选择或新建一个监控分类。
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {settingsTab === 'menu' && (
               <div style={styles.settingsSection}>
                 <div style={styles.settingsCard}>
@@ -1638,33 +2146,19 @@ export default function AppPage() {
         <AddKeywordModal
           show={showAddKeywordModal}
           onClose={() => setShowAddKeywordModal(false)}
-          onAdd={(keyword) => {
-            setCategories(prev => prev.map(cat => {
-              if (cat.id === selectedCategoryId) {
-                return { ...cat, keywords: [...cat.keywords, keyword] };
-              }
-              return cat;
-            }));
-            setShowAddKeywordModal(false);
-          }}
+          onAdd={handleAddKeyword}
           selectedCategory={selectedCategory}
           selectedCategoryId={selectedCategoryId}
+          saving={categorySaving}
         />
 
         <AddCreatorModal
           show={showAddCreatorModalSettings}
           onClose={() => setShowAddCreatorModalSettings(false)}
-          onAdd={(creator) => {
-            setCategories(prev => prev.map(cat => {
-              if (cat.id === selectedCategoryId) {
-                return { ...cat, creators: [...cat.creators, creator] };
-              }
-              return cat;
-            }));
-            setShowAddCreatorModalSettings(false);
-          }}
+          onAdd={handleAddCreatorToCategory}
           selectedCategory={selectedCategory}
           selectedCategoryId={selectedCategoryId}
+          saving={categorySaving}
         />
 
 
@@ -1689,9 +2183,6 @@ export default function AppPage() {
           <OptimizationLoop />
         )}
 
-        {activeTab === 'ipPlan' && (
-          <IPPlanPage />
-        )}
       </main>
 
 

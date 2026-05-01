@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 
-function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard' | 'ipPlan') => void }) {
+function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard') => void }) {
   const [stats, setStats] = useState({
     totalArticles: 0,
     publishedArticles: 0,
@@ -55,7 +55,6 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
       bgColor: '#f8fafc',
       icon: '📄',
       iconBg: '#e2e8f0',
-      trend: '+12%'
     },
     { 
       label: '已发布', 
@@ -64,7 +63,6 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
       bgColor: '#ecfdf5',
       icon: '📤',
       iconBg: '#a7f3d0',
-      trend: '+8%'
     },
     { 
       label: '草稿箱', 
@@ -73,7 +71,6 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
       bgColor: '#fffbeb',
       icon: '✏️',
       iconBg: '#fde68a',
-      trend: '+3%'
     },
     { 
       label: '分析任务', 
@@ -82,16 +79,14 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
       bgColor: '#fef3ee',
       icon: '📊',
       iconBg: '#fecaca',
-      trend: '+15%'
     },
   ];
 
-  const quickActions: Array<{ icon: string; title: string; desc: string; tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard' | 'ipPlan'; color: string }> = [
+  const quickActions: Array<{ icon: string; title: string; desc: string; tab: 'content' | 'hotTopics' | 'analysis' | 'topicAnalysis' | 'wechatCollect' | 'wechatAccount' | 'crawler' | 'settings' | 'create' | 'pendingPublish' | 'techniques' | 'analytics' | 'styles' | 'dashboard'; color: string }> = [
     { icon: '📥', title: '文章采集', desc: '采集公众号文章', tab: 'wechatCollect', color: '#3b82f6' },
     { icon: '🔍', title: '公众号采集', desc: '搜索公众号与订阅', tab: 'wechatAccount', color: '#8b5cf6' },
     { icon: '📊', title: '选题分析', desc: '选题评估与分析', tab: 'topicAnalysis', color: '#E8652D' },
     { icon: '✍️', title: '创作工作台', desc: 'AI一键创作文章', tab: 'create', color: '#10b981' },
-    { icon: '🎯', title: 'IP方案', desc: '5步打造公众号IP', tab: 'ipPlan', color: '#f59e0b' },
   ];
 
   const workflowSteps = [
@@ -156,7 +151,6 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: 500 }}>{stat.label}</div>
-                  <div style={{ fontSize: '11px', color: stat.color, fontWeight: 600 }}>{stat.trend}</div>
                 </div>
               </div>
               <div style={{ fontSize: '32px', fontWeight: 700, color: stat.color, lineHeight: 1 }}>

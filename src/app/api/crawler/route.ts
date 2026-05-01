@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { platformPosts, postComments, creators, commentWordCloud, crawlTasks } from '@/lib/db/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
+import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 
 const PLATFORMS = ['xiaohongshu', 'douyin', 'kuaishou', 'bilibili', 'weibo', 'tieba', 'zhihu'] as const;
 
@@ -265,7 +266,26 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
       });
     }
   } else {
-    // 无Cookie时，返回Mock演示数据
+    if (!isDemoDataAllowed()) {
+      await db().update(crawlTasks)
+        .set({
+          status: 'failed',
+          errorMessage: '未提供真实平台 Cookie，且演示数据已禁用',
+          completedAt: new Date(),
+        })
+        .where(eq(crawlTasks.id, task.id));
+
+      return NextResponse.json({
+        success: false,
+        taskId: task.id,
+        error: demoDataDisabledMessage('通用爬虫搜索'),
+        posts: [],
+        total: 0,
+        isRealData: false,
+      }, { status: 501 });
+    }
+
+    // 无Cookie时，仅在显式演示模式返回演示数据
     isRealData = false;
     posts = generateMockSearchResults(platform, keyword, limit);
   }
@@ -326,6 +346,22 @@ async function crawlPost(platform: string, postId: string) {
     startedAt: new Date(),
   }).returning();
 
+  if (!isDemoDataAllowed()) {
+    await db().update(crawlTasks)
+      .set({
+        status: 'failed',
+        errorMessage: '帖子详情抓取需要真实爬虫服务',
+        completedAt: new Date(),
+      })
+      .where(eq(crawlTasks.id, task.id));
+
+    return NextResponse.json({
+      success: false,
+      taskId: task.id,
+      error: demoDataDisabledMessage('帖子详情抓取'),
+    }, { status: 501 });
+  }
+
   const mockPost = generateMockPostDetail(platform, postId);
 
   const [savedPost] = await db().insert(platformPosts).values({
@@ -374,6 +410,13 @@ async function crawlComments(postId: number, includeReplies: boolean = true) {
   const [post] = await db().select().from(platformPosts).where(eq(platformPosts.id, postId));
   if (!post) {
     return NextResponse.json({ success: false, error: 'Post not found' }, { status: 404 });
+  }
+
+  if (!isDemoDataAllowed()) {
+    return NextResponse.json({
+      success: false,
+      error: demoDataDisabledMessage('评论抓取'),
+    }, { status: 501 });
   }
 
   const mockComments = generateMockComments(post.platform, postId, includeReplies);
@@ -432,6 +475,13 @@ async function crawlCreatorPosts(creatorId: number) {
   const [creator] = await db().select().from(creators).where(eq(creators.id, creatorId));
   if (!creator) {
     return NextResponse.json({ success: false, error: 'Creator not found' }, { status: 404 });
+  }
+
+  if (!isDemoDataAllowed()) {
+    return NextResponse.json({
+      success: false,
+      error: demoDataDisabledMessage('创作者作品抓取'),
+    }, { status: 501 });
   }
 
   const mockPosts = generateMockCreatorPosts(creator.platform, creator.creatorId, creator.name);

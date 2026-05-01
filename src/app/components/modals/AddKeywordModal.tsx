@@ -14,22 +14,23 @@ interface AddKeywordModalProps {
   onAdd: (keyword: string) => void;
   selectedCategory: MonitorCategory | undefined;
   selectedCategoryId: string;
+  saving?: boolean;
 }
 
-export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory }: AddKeywordModalProps) {
+export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory, saving = false }: AddKeywordModalProps) {
   const [newKeyword, setNewKeyword] = useState('');
 
   if (!show) return null;
 
   const handleAdd = () => {
-    if (newKeyword.trim() && selectedCategory) {
+    if (!saving && newKeyword.trim() && selectedCategory) {
       onAdd(newKeyword.trim());
       setNewKeyword('');
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && newKeyword.trim() && selectedCategory) {
+    if (e.key === 'Enter' && !saving && newKeyword.trim() && selectedCategory) {
       onAdd(newKeyword.trim());
       setNewKeyword('');
     }
@@ -65,6 +66,7 @@ export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory
             value={newKeyword}
             onChange={(e) => setNewKeyword(e.target.value)}
             placeholder="请输入要监控的关键词..."
+            disabled={saving}
             style={{
               width: '100%',
               padding: '12px',
@@ -78,6 +80,7 @@ export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button
             onClick={onClose}
+            disabled={saving}
             style={{
               padding: '10px 20px',
               backgroundColor: '#f3f4f6',
@@ -92,6 +95,7 @@ export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory
           </button>
           <button
             onClick={handleAdd}
+            disabled={saving}
             style={{
               padding: '10px 20px',
               backgroundColor: '#3b82f6',
@@ -99,10 +103,11 @@ export default function AddKeywordModal({ show, onClose, onAdd, selectedCategory
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
-              cursor: 'pointer',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.7 : 1,
             }}
           >
-            添加
+            {saving ? '保存中...' : '添加'}
           </button>
         </div>
       </div>

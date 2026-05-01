@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: { ignoreBuildErrors: true },
   outputFileTracingRoot: __dirname,
   output: 'standalone',
 
@@ -60,16 +59,6 @@ const nextConfig = {
   // 压缩配置
   compress: true,
 
-  // 运行时配置
-  serverRuntimeConfig: {
-    // 只有服务端能访问的配置
-    encryptionKey: process.env.DB_ENCRYPTION_KEY,
-  },
-
-  // 公共配置（客户端和服务端都能访问）
-  publicRuntimeConfig: {
-    env: process.env.NODE_ENV,
-  },
 };
 
 module.exports = nextConfig;

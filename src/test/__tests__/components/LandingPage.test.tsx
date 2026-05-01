@@ -135,7 +135,7 @@ describe('LandingPage', () => {
     fireEvent.change(emailInput, { target: { value: 'invalid-email' } });
 
     const passwordInput = screen.getByPlaceholderText('请输入密码');
-    fireEvent.change(passwordInput, { target: { value: '123456' } });
+    fireEvent.change(passwordInput, { target: { value: '12345678' } });
 
     const form = document.querySelector('form');
     expect(form).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('LandingPage', () => {
     fireEvent.change(usernameInput, { target: { value: 'testuser' } });
 
     const passwordInput = screen.getByPlaceholderText('请输入密码');
-    fireEvent.change(passwordInput, { target: { value: '123456' } });
+    fireEvent.change(passwordInput, { target: { value: '12345678' } });
 
     const form = document.querySelector('form');
     expect(form).toBeInTheDocument();

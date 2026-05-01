@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, wechatSubscriptions, collectedArticles, monitorLogs } from '@/lib/db/schema';
 import { eq, desc, and, gt, inArray } from 'drizzle-orm';
+import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
 
@@ -243,6 +244,10 @@ async function checkBlackHorses() {
 }
 
 async function fetchPlatformTopics(platform: string) {
+  if (!isDemoDataAllowed()) {
+    throw new Error(demoDataDisabledMessage(`热点监控 ${platform}`));
+  }
+
   const mockTopics = generateMockHotTopics(platform);
 
   const inserted: typeof hotTopics.$inferSelect[] = [];
@@ -318,6 +323,14 @@ async function logMonitorEvent(type: string, message: string) {
   }
 }
 
+function deterministicNumber(input: string, min: number, max: number): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return min + (hash % (max - min + 1));
+}
+
 function generateMockHotTopics(platform: string) {
   const topicTemplates: Record<string, Array<{ title: string; category: string }>> = {
     weibo: [
@@ -360,8 +373,12 @@ function generateMockHotTopics(platform: string) {
   const templates = topicTemplates[platform] || topicTemplates.weibo;
 
   return templates.map((template, index) => {
-    const hotValue = Math.floor(Math.random() * 10000000) + 100000;
-    const isBlackHorse = hotValue < 500000 && Math.random() > 0.7;
+    const seed = `${platform}:${template.title}:${index}`;
+    const hotValue = deterministicNumber(seed, 100000, 10000000);
+    const trendOptions = ['up', 'down', 'stable'] as const;
+    const trendDirection = trendOptions[deterministicNumber(seed, 0, trendOptions.length - 1)];
+    const predictedGrowth = deterministicNumber(`${seed}:growth`, 5, 180);
+    const isBlackHorse = hotValue < 500000 && predictedGrowth > 80;
 
     return {
       platform,
@@ -372,8 +389,8 @@ function generateMockHotTopics(platform: string) {
       rank: index + 1,
       category: template.category,
       tags: [template.category, platform, '热点'],
-      trendDirection: Math.random() > 0.5 ? 'up' : Math.random() > 0.5 ? 'down' : 'stable',
-      predictedGrowth: isBlackHorse ? Math.random() * 200 + 100 : Math.random() * 50,
+      trendDirection,
+      predictedGrowth,
       isBlackHorse,
     };
   });

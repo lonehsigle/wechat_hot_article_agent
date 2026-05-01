@@ -83,6 +83,33 @@ describe('/api/contents', () => {
     expect(data.data.contents).toHaveLength(0);
   });
 
+  it('should filter by categoryId', async () => {
+    const { GET } = await import('@/app/api/contents/route');
+    mockDbQueue.push([
+      { id: 1, categoryId: 2, platform: 'wechat', title: 'Category Title', readCount: 100, likeCount: 10, commentCount: 1, shareCount: 2, author: 'Author', digest: 'Digest', content: 'Body', date: '2026-05-01', url: 'http://test' },
+    ]);
+    mockDbQueue.push([{ count: 1 }]);
+
+    const req = createRequest('http://localhost/api/contents?categoryId=2');
+    const res = await GET(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.data.contents).toHaveLength(1);
+    expect(data.data.contents[0].categoryId).toBe(2);
+    expect(data.data.contents[0].commentCount).toBe(1);
+  });
+
+  it('should reject invalid categoryId', async () => {
+    const { GET } = await import('@/app/api/contents/route');
+    const req = createRequest('http://localhost/api/contents?categoryId=abc');
+    const res = await GET(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('Invalid categoryId');
+  });
+
   it('should handle database errors', async () => {
     const { GET } = await import('@/app/api/contents/route');
     mockDbQueue.push(Promise.reject(new Error('DB error')));
