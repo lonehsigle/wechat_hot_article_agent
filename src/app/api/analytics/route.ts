@@ -2,40 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { publishedArticles, articleStats, contents, monitorCategories } from '@/lib/db/schema';
 import { desc, gte, eq } from 'drizzle-orm';
-import { syncAllArticleStats } from '@/lib/wechat/service';
 
-// 自动同步锁，防止并发触发
-let autoSyncInProgress = false;
+const STATS_STALE_AFTER_MINUTES = 30;
 
-async function maybeAutoSyncStats(): Promise<void> {
-  if (autoSyncInProgress) return;
+async function getStatsSyncStatus(database: ReturnType<typeof db>) {
+  const latestStats = await database
+    .select()
+    .from(articleStats)
+    .orderBy(desc(articleStats.recordTime))
+    .limit(1);
 
-  try {
-    const database = db();
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const latestRecordTime = latestStats[0]?.recordTime || null;
+  const staleBefore = new Date(Date.now() - STATS_STALE_AFTER_MINUTES * 60 * 1000);
+  const needsSync = !latestRecordTime || latestRecordTime < staleBefore;
 
-    // 检查最近一次统计记录时间
-    const latestStats = await database
-      .select()
-      .from(articleStats)
-      .orderBy(desc(articleStats.recordTime))
-      .limit(1);
-
-    const needsSync =
-      latestStats.length === 0 ||
-      (latestStats[0].recordTime && latestStats[0].recordTime < thirtyMinutesAgo);
-
-    if (needsSync) {
-      autoSyncInProgress = true;
-      console.log('[analytics] Auto-syncing article stats (data older than 30min)');
-      const result = await syncAllArticleStats();
-      console.log(`[analytics] Auto-sync result: synced=${result.synced}, failed=${result.failed}, skipped=${result.skipped}`);
-    }
-  } catch (err) {
-    console.error('[analytics] Auto-sync failed:', err);
-  } finally {
-    autoSyncInProgress = false;
-  }
+  return {
+    needsSync,
+    latestRecordTime,
+    staleAfterMinutes: STATS_STALE_AFTER_MINUTES,
+    syncEndpoint: '/api/analytics/sync',
+    jobName: 'syncArticleStats',
+    note: 'GET /api/analytics 不再隐式触发后台同步；请通过显式接口或 worker 任务同步。',
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -43,13 +31,6 @@ export async function GET(request: NextRequest) {
   const range = searchParams.get('range') || '30d';
 
   const database = db();
-  
-  // 如果请求带 autoSync 参数或数据超过30分钟未更新，自动触发同步
-  const shouldAutoSync = searchParams.get('autoSync') !== 'false';
-  if (shouldAutoSync) {
-    // 使用 void 允许后台执行，不阻塞响应
-    void maybeAutoSyncStats();
-  }
 
   const now = new Date();
   let startDate: Date;
@@ -65,6 +46,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const syncStatus = await getStatsSyncStatus(database);
+
     const articles = await database
       .select()
       .from(publishedArticles)
@@ -173,6 +156,7 @@ export async function GET(request: NextRequest) {
       topArticles,
       weeklyTrend,
       categoryStats,
+      syncStatus,
     });
   } catch (error) {
     console.error('Analytics error:', error);
@@ -186,6 +170,14 @@ export async function GET(request: NextRequest) {
       topArticles: [],
       weeklyTrend: [],
       categoryStats: [],
+      syncStatus: {
+        needsSync: true,
+        latestRecordTime: null,
+        staleAfterMinutes: STATS_STALE_AFTER_MINUTES,
+        syncEndpoint: '/api/analytics/sync',
+        jobName: 'syncArticleStats',
+        note: '统计状态读取失败，请修复错误后显式同步。',
+      },
     }, { status: 500 });
   }
 }

@@ -40,6 +40,21 @@ vi.mock('@/lib/db', () => ({
 
 vi.mock('@/lib/wechat/service', () => ({
   createDraft: vi.fn(() => Promise.resolve({ mediaId: 'media123' })),
+  getPublishStatus: vi.fn(() => Promise.resolve({
+    publishId: 'pub-123',
+    publishStatus: 'publish_success',
+    publishStatusName: '发布成功',
+    articleUrl: 'https://mp.weixin.qq.com/s/abc',
+    msgDataId: 'msg-123',
+    raw: {},
+  })),
+  syncPublishedArticlesFromWechat: vi.fn(() => Promise.resolve({
+    success: true,
+    synced: 1,
+    failed: 0,
+    items: [{ articleUrl: 'https://mp.weixin.qq.com/s/abc', msgDataId: 'msg-123' }],
+  })),
+  toLocalPublishStatus: vi.fn(() => 'published'),
   uploadImageFromUrl: vi.fn(() => {
     const value = mockUploadQueue.length > 0 ? mockUploadQueue.shift() : mockUploadDefault;
     if (value instanceof Error) return Promise.reject(value);
@@ -391,6 +406,54 @@ describe('/api/publish', () => {
       expect(data.error).toContain('缺少封面图片');
     });
 
+    it('should block publish when content still carries AI generated unverified markers', async () => {
+      const { POST } = await import('@/app/api/publish/route');
+
+      const req = createRequest('http://localhost/api/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'publish',
+          accountId: 'acc1',
+          title: 'Test Article',
+          content: '这是一篇待核验的 AI生成 内容',
+          autoSearchImages: true,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(422);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('待核验');
+    });
+
+    it('allows explicit confirmation before publishing unverified generated content', async () => {
+      const { POST } = await import('@/app/api/publish/route');
+      mockDbQueue.push([{ id: 8, title: 'Test Article', publishStatus: 'draft' }]);
+
+      const req = createRequest('http://localhost/api/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'publish',
+          accountId: 'acc1',
+          title: 'Test Article',
+          content: '这是一篇待核验的 AI生成 内容',
+          autoSearchImages: true,
+          confirmUnverified: true,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.articleId).toBe(8);
+    });
+
     it('should return 400 when autoSearchImages cover upload fails', async () => {
       const { POST } = await import('@/app/api/publish/route');
       mockUploadQueue.push(new Error('cover upload failed'));
@@ -470,6 +533,51 @@ describe('/api/publish', () => {
 
       expect(res.status).toBe(400);
       expect(data.error).toContain('不能为空');
+    });
+
+    it('should refresh publish status and persist official identifiers separately', async () => {
+      const { POST } = await import('@/app/api/publish/route');
+      mockDbQueue.push([{ id: 9, publishStatus: 'published' }]);
+
+      const req = createRequest('http://localhost/api/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'refresh-status',
+          accountId: 1,
+          articleId: 9,
+          publishId: 'pub-123',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.status.publishStatus).toBe('publish_success');
+      expect(data.article.publishStatus).toBe('published');
+    });
+
+    it('should sync published article list from official freepublish batchget', async () => {
+      const { POST } = await import('@/app/api/publish/route');
+
+      const req = createRequest('http://localhost/api/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'sync-published-list',
+          accountId: 1,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.result.synced).toBe(1);
+      expect(data.result.items[0].msgDataId).toBe('msg-123');
     });
 
     it('should return 400 for unknown action', async () => {

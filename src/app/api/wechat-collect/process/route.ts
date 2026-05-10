@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
     .where(eq(collectTasks.id, taskId));
 
   try {
-    // 后台自动处理功能暂未实现，返回错误提示
     await db().update(collectTasks)
       .set({
         status: 'failed',
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: '后台自动处理功能暂未实现，请手动选择文章进行采集',
-    });
+    }, { status: 501 });
   } catch (error) {
     console.error('Collect error:', error);
     
@@ -53,7 +52,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Collect failed' }, { status: 500 });
   }
 }
-
-// generateMockArticles 已移除 - 后台自动处理功能暂未实现，请手动选择文章进行采集
-// function generateMockArticles(...) { ... }
-// function generateMockContent(...) { ... }

@@ -14,10 +14,21 @@ function isProtectedPath(pathname: string): boolean {
   return pathname === '/app' || pathname.startsWith('/app/') || pathname.startsWith('/api/');
 }
 
+function hasValidInternalWorkerToken(request: NextRequest): boolean {
+  const expectedToken = process.env.INTERNAL_WORKER_TOKEN;
+  if (!expectedToken) return false;
+  const receivedToken = request.headers.get('x-internal-worker-token');
+  return receivedToken === expectedToken;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isProtectedPath(pathname) || isPublicApi(pathname)) {
+    return NextResponse.next();
+  }
+
+  if ((pathname === '/api/jobs' || pathname.startsWith('/api/jobs/')) && hasValidInternalWorkerToken(request)) {
     return NextResponse.next();
   }
 

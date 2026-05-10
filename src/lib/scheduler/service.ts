@@ -1,6 +1,6 @@
 /**
- * 轻量级任务调度器 - 基于 setInterval 实现，无需 node-cron 依赖
- * 支持任务注册、取消、查看状态
+ * 任务执行注册表。
+ * Next.js API Route 不提供可靠的常驻定时能力，因此这里仅保留任务状态和手动执行。
  */
 
 export type TaskStatus = 'idle' | 'running' | 'paused' | 'error';
@@ -31,7 +31,6 @@ interface TaskConfig {
 
 interface TaskInstance {
   config: TaskConfig;
-  timer: NodeJS.Timeout | null;
   state: ScheduledTask;
 }
 
@@ -51,21 +50,21 @@ export const DEFAULT_TASKS: TaskConfig[] = [
   },
   {
     name: 'syncWechatDrafts',
-    description: '同步微信公众号草稿箱',
+    description: '同步微信公众号草稿箱（未接入真实草稿列表 API）',
     intervalMs: 15 * 60 * 1000, // 15分钟
     executor: async (_taskName: string) => {
       console.log(`[scheduler] syncWechatDrafts triggered at ${new Date().toISOString()}`);
     },
-    enabled: true,
+    enabled: false,
   },
   {
     name: 'hotTopicsCache',
-    description: '热点数据缓存更新',
+    description: '热点数据缓存更新（未接入真实数据源）',
     intervalMs: 10 * 60 * 1000, // 10分钟
     executor: async (_taskName: string) => {
       console.log(`[scheduler] hotTopicsCache triggered at ${new Date().toISOString()}`);
     },
-    enabled: true,
+    enabled: false,
   },
 ];
 
@@ -83,11 +82,11 @@ function createTaskState(config: TaskConfig): ScheduledTask {
   };
 }
 
-async function executeTask(instance: TaskInstance): Promise<void> {
+async function executeTask(instance: TaskInstance): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
   const { config, state } = instance;
   if (state.status === 'running') {
     console.log(`[scheduler] Task ${config.name} is already running, skip this tick`);
-    return;
+    return { success: true, skipped: true };
   }
 
   state.status = 'running';
@@ -98,28 +97,16 @@ async function executeTask(instance: TaskInstance): Promise<void> {
     await config.executor(config.name);
     state.runCount += 1;
     state.status = state.status === 'running' ? 'idle' : state.status;
+    state.lastError = null;
+    return { success: true };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     state.errorCount += 1;
-    state.lastError = error instanceof Error ? error.message : String(error);
+    state.lastError = message;
     state.status = 'error';
     console.error(`[scheduler] Task ${config.name} failed:`, error);
+    return { success: false, error: message };
   }
-}
-
-function startTimer(instance: TaskInstance): void {
-  if (instance.timer) {
-    clearInterval(instance.timer);
-  }
-
-  instance.state.nextRunAt = new Date(Date.now() + instance.config.intervalMs);
-  instance.timer = setInterval(() => {
-    executeTask(instance).catch(err => {
-      console.error(`[scheduler] Uncaught error in task ${instance.config.name}:`, err);
-    });
-  }, instance.config.intervalMs);
-
-  // 立即执行一次（可选，视需求而定）
-  // executeTask(instance);
 }
 
 export function registerTask(
@@ -127,7 +114,7 @@ export function registerTask(
   description: string,
   intervalMs: number,
   executor: TaskExecutor,
-  options?: { enabled?: boolean; runImmediately?: boolean }
+  options?: { enabled?: boolean }
 ): ScheduledTask {
   if (TASK_REGISTRY.has(name)) {
     throw new Error(`Task ${name} is already registered`);
@@ -142,62 +129,22 @@ export function registerTask(
   };
 
   const state = createTaskState(config);
+  if (!config.enabled) {
+    state.status = 'paused';
+  }
+
   const instance: TaskInstance = {
     config,
-    timer: null,
     state,
   };
 
   TASK_REGISTRY.set(name, instance);
 
-  if (config.enabled) {
-    startTimer(instance);
-    if (options?.runImmediately) {
-      executeTask(instance).catch(console.error);
-    }
-  }
-
   return { ...state };
 }
 
 export function unregisterTask(name: string): boolean {
-  const instance = TASK_REGISTRY.get(name);
-  if (!instance) return false;
-
-  if (instance.timer) {
-    clearInterval(instance.timer);
-    instance.timer = null;
-  }
-
-  TASK_REGISTRY.delete(name);
-  return true;
-}
-
-export function startTask(name: string): boolean {
-  const instance = TASK_REGISTRY.get(name);
-  if (!instance) return false;
-
-  if (instance.timer) {
-    return true; // 已经在运行
-  }
-
-  startTimer(instance);
-  instance.state.status = 'idle';
-  return true;
-}
-
-export function stopTask(name: string): boolean {
-  const instance = TASK_REGISTRY.get(name);
-  if (!instance) return false;
-
-  if (instance.timer) {
-    clearInterval(instance.timer);
-    instance.timer = null;
-  }
-
-  instance.state.status = 'paused';
-  instance.state.nextRunAt = null;
-  return true;
+  return TASK_REGISTRY.delete(name);
 }
 
 export async function runTaskNow(name: string): Promise<{ success: boolean; error?: string }> {
@@ -207,8 +154,7 @@ export async function runTaskNow(name: string): Promise<{ success: boolean; erro
   }
 
   try {
-    await executeTask(instance);
-    return { success: true };
+    return await executeTask(instance);
   } catch (error) {
     return {
       success: false,
@@ -240,21 +186,8 @@ export function initDefaultTasks(executors?: Partial<Record<string, TaskExecutor
 
 export function shutdownAllTasks(): void {
   for (const [name, instance] of TASK_REGISTRY.entries()) {
-    if (instance.timer) {
-      clearInterval(instance.timer);
-      instance.timer = null;
-    }
     instance.state.status = 'paused';
     instance.state.nextRunAt = null;
     console.log(`[scheduler] Task ${name} stopped`);
   }
-}
-
-// 全局清理钩子（在 Next.js 开发模式下热重载时清理）
-if (typeof process !== 'undefined') {
-  const cleanup = () => {
-    shutdownAllTasks();
-  };
-  process.on('SIGTERM', cleanup);
-  process.on('SIGINT', cleanup);
 }

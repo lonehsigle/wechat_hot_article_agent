@@ -9,6 +9,14 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
     pendingDrafts: 0,
     analysisTasks: 0,
   });
+  const [opsStatus, setOpsStatus] = useState<{
+    status: string;
+    capabilitySummary?: { ready: number; degraded: number; blocked: number };
+    analyticsSync?: { needsSync?: boolean; jobName?: string };
+    jobRuns?: { recent?: Array<{ jobName: string; status: string }> };
+    security?: { demoDataAllowed?: boolean; workerTokenConfigured?: boolean };
+    warnings?: string[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +47,18 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
         pendingDrafts: drafts,
         analysisTasks: analysisData.length,
       });
+
+      try {
+        const opsRes = await fetch('/api/ops/status', { signal });
+        const opsData = await opsRes.json();
+        if (opsData.success) {
+          setOpsStatus(opsData);
+        }
+      } catch (error) {
+        if (!(error instanceof Error && error.name === 'AbortError')) {
+          console.error('Failed to load ops status:', error);
+        }
+      }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to load stats:', error);
@@ -160,6 +180,44 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
           ))
         )}
       </div>
+
+      {opsStatus && (
+        <div className="card" style={{ ...styles.opsCard, marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#1f2937', margin: '0 0 8px' }}>系统能力</h2>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>
+                ready {opsStatus.capabilitySummary?.ready ?? 0} · degraded {opsStatus.capabilitySummary?.degraded ?? 0} · blocked {opsStatus.capabilitySummary?.blocked ?? 0}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ ...styles.opsBadge, backgroundColor: opsStatus.status === 'ok' ? '#dcfce7' : '#fef3c7', color: opsStatus.status === 'ok' ? '#166534' : '#92400e' }}>
+                {opsStatus.status}
+              </span>
+              <span style={{ ...styles.opsBadge, backgroundColor: opsStatus.security?.workerTokenConfigured ? '#dcfce7' : '#fee2e2', color: opsStatus.security?.workerTokenConfigured ? '#166534' : '#991b1b' }}>
+                worker {opsStatus.security?.workerTokenConfigured ? '已配置' : '未配置'}
+              </span>
+              <span style={{ ...styles.opsBadge, backgroundColor: opsStatus.analyticsSync?.needsSync ? '#fef3c7' : '#dcfce7', color: opsStatus.analyticsSync?.needsSync ? '#92400e' : '#166534' }}>
+                stats {opsStatus.analyticsSync?.needsSync ? '需同步' : '正常'}
+              </span>
+            </div>
+          </div>
+          {opsStatus.warnings && opsStatus.warnings.length > 0 && (
+            <div style={{ marginTop: '12px', display: 'grid', gap: '6px' }}>
+              {opsStatus.warnings.slice(0, 3).map((warning, index) => (
+                <div key={index} style={{ fontSize: '13px', color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '8px 10px' }}>
+                  {warning}
+                </div>
+              ))}
+            </div>
+          )}
+          {opsStatus.jobRuns?.recent?.[0] && (
+            <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
+              最近任务：{opsStatus.jobRuns.recent[0].jobName} · {opsStatus.jobRuns.recent[0].status}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div style={{ marginBottom: '24px' }}>
@@ -352,6 +410,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '12px',
     padding: '20px',
     border: '1px solid #e5e7eb',
+  },
+  opsCard: {
+    backgroundColor: '#fff',
+    borderRadius: '12px',
+    padding: '18px',
+    border: '1px solid #e5e7eb',
+  },
+  opsBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: '28px',
+    padding: '4px 10px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: 600,
   },
 };
 

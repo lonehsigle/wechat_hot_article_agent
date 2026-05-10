@@ -1,0 +1,10 @@
+task_set_id=cm-first-principles-optimization
+version=2026-05-10.locked
+generated_at=2026-05-10T11:03:00+08:00
+generated_by=codex/spec-todo-stability
+spec=docs/specs/systematic-optimization.spec.md
+spec_sha256=d96f722a39721fe45bfbdbba898d48ee23ad7f6634c164c35568323e4ee83202
+tasks=docs/specs/systematic-optimization.tasks.md
+tasks_sha256=93f061725fba428ffd485511138bef9bbeac6cffaf1036c48a5b31006effbe6e
+ledger=docs/specs/systematic-optimization.ledger.md
+evidence=docs/specs/systematic-optimization.evidence.md

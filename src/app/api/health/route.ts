@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { llmConfigs, wechatAccounts } from '@/lib/db/schema';
+import { summarizeCapabilities } from '@/lib/system/capabilities';
+import { summarizeDataSources } from '@/lib/system/data-sources';
 
 type CheckStatus = 'ok' | 'warning' | 'error';
 
@@ -80,6 +82,14 @@ export async function GET() {
       : '演示数据默认禁用',
   });
 
+  checks.push({
+    name: 'internal_worker_token',
+    status: process.env.INTERNAL_WORKER_TOKEN ? 'ok' : 'warning',
+    message: process.env.INTERNAL_WORKER_TOKEN
+      ? '已配置外部 worker 调用 token'
+      : '未配置外部 worker token，长任务/定时任务只能手动触发',
+  });
+
   const status: CheckStatus = checks.some(check => check.status === 'error')
     ? 'error'
     : checks.some(check => check.status === 'warning')
@@ -90,5 +100,7 @@ export async function GET() {
     success: status !== 'error',
     status,
     checks,
+    capabilities: summarizeCapabilities(),
+    dataSources: summarizeDataSources(),
   }, { status: status === 'error' ? 500 : 200 });
 }

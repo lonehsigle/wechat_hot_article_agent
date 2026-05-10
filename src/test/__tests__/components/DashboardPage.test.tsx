@@ -63,6 +63,17 @@ describe('DashboardPage', () => {
           { id: 1 },
           { id: 2 },
         ],
+      } as Response)
+      .mockResolvedValueOnce({
+        json: async () => ({
+          success: true,
+          status: 'warning',
+          capabilitySummary: { ready: 4, degraded: 2, blocked: 2 },
+          analyticsSync: { needsSync: true, jobName: 'syncArticleStats' },
+          jobRuns: { recent: [{ jobName: 'syncArticleStats', status: 'succeeded' }] },
+          security: { demoDataAllowed: false, workerTokenConfigured: false },
+          warnings: ['未配置 worker'],
+        }),
       } as Response);
 
     render(<DashboardPage setActiveTab={vi.fn()} />);
@@ -74,6 +85,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('已发布')).toBeInTheDocument();
     expect(screen.getByText('草稿箱')).toBeInTheDocument();
     expect(screen.getByText('分析任务')).toBeInTheDocument();
+    expect(screen.getByText('系统能力')).toBeInTheDocument();
+    expect(screen.getByText('未配置 worker')).toBeInTheDocument();
   });
 
   it('calls setActiveTab when quick action clicked', async () => {

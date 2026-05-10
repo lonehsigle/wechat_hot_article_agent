@@ -382,7 +382,7 @@ describe('/api/crawler', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(501);
       expect(data.success).toBe(false);
       expect(data.error).toContain('真实爬取被目标平台阻止');
     });
@@ -451,7 +451,7 @@ describe('/api/crawler', () => {
         const res = await POST(req);
         const data = await res.json();
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(501);
         expect(data.success).toBe(false);
         expect(data.error).toContain('真实爬取被目标平台阻止');
       } finally {
@@ -887,10 +887,11 @@ describe('/api/crawler', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
       expect(data.results.searchedPosts).toBe(0);
       expect(data.results.crawledPosts).toBe(0);
+      expect(data.results.errors.length).toBeGreaterThan(0);
     });
 
     it('should handle error in batch-crawl search', async () => {
@@ -906,8 +907,8 @@ describe('/api/crawler', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(res.status).toBe(500);
+      expect(data.success).toBe(false);
       expect(data.results.errors.length).toBeGreaterThan(0);
     });
 
@@ -924,8 +925,8 @@ describe('/api/crawler', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(res.status).toBe(500);
+      expect(data.success).toBe(false);
       expect(data.results.errors.length).toBeGreaterThan(0);
     });
 

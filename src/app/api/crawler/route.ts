@@ -263,7 +263,7 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
         posts: [],
         total: 0,
         isRealData: false,
-      });
+      }, { status: 501 });
     }
   } else {
     if (!isDemoDataAllowed()) {
@@ -329,7 +329,7 @@ async function searchPosts(platform: string, keyword: string, limit: number = 20
     posts: insertedPosts,
     total: insertedPosts.length,
     isRealData,
-    message: cookie ? 'Cookie已接收，真实爬取功能需要部署爬虫服务' : '使用演示数据，配置Cookie后可尝试真实爬取',
+    message: isRealData ? '已获取真实平台数据' : '使用演示数据，配置Cookie后可尝试真实爬取',
   });
 }
 
@@ -588,6 +588,7 @@ async function batchCrawl(platform: string, keywords: string[], postIds: string[
     crawledPosts: 0,
     errors: [] as string[],
   };
+  const failureStatuses: number[] = [];
 
   if (keywords && keywords.length > 0) {
     for (const keyword of keywords) {
@@ -596,8 +597,12 @@ async function batchCrawl(platform: string, keywords: string[], postIds: string[
         const data = await result.json();
         if (data.success) {
           results.searchedPosts += data.total;
+        } else {
+          failureStatuses.push(result.status);
+          results.errors.push(`Search "${keyword}" failed: ${data.error || '未知错误'}`);
         }
       } catch (error) {
+        failureStatuses.push(500);
         results.errors.push(`Search "${keyword}" failed: ${error}`);
       }
     }
@@ -610,11 +615,25 @@ async function batchCrawl(platform: string, keywords: string[], postIds: string[
         const data = await result.json();
         if (data.success) {
           results.crawledPosts++;
+        } else {
+          failureStatuses.push(result.status);
+          results.errors.push(`Crawl post "${postId}" failed: ${data.error || '未知错误'}`);
         }
       } catch (error) {
+        failureStatuses.push(500);
         results.errors.push(`Crawl post "${postId}" failed: ${error}`);
       }
     }
+  }
+
+  const hasSuccessfulWork = results.searchedPosts > 0 || results.crawledPosts > 0;
+  if (!hasSuccessfulWork && results.errors.length > 0) {
+    const status = failureStatuses.includes(501) ? 501 : 500;
+    return NextResponse.json({
+      success: false,
+      error: '批量采集未完成：所有子任务均失败',
+      results,
+    }, { status });
   }
 
   return NextResponse.json({ success: true, results });

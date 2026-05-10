@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { wechatDrafts } from '@/lib/db/schema';
+import { wechatAccounts, wechatDrafts } from '@/lib/db/schema';
 import { eq, desc, inArray, and, sql, SQL } from 'drizzle-orm';
+import { listWechatDrafts } from '@/lib/wechat/service';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     if (action === 'sync') {
-      return await syncDrafts();
+      const { accountId, count } = body;
+      return await syncDrafts(accountId, count);
     }
 
     if (action === 'delete') {
@@ -170,10 +172,98 @@ async function searchDrafts(keyword: string | null) {
   return NextResponse.json({ success: true, drafts });
 }
 
-async function syncDrafts() {
+async function resolveSyncAccountId(accountId?: number): Promise<number | null> {
+  if (accountId && !Number.isNaN(Number(accountId))) {
+    return Number(accountId);
+  }
+
+  const [defaultAccount] = await db()
+    .select({ id: wechatAccounts.id })
+    .from(wechatAccounts)
+    .where(eq(wechatAccounts.isDefault, true))
+    .limit(1);
+
+  if (defaultAccount) {
+    return defaultAccount.id;
+  }
+
+  const [firstAccount] = await db()
+    .select({ id: wechatAccounts.id })
+    .from(wechatAccounts)
+    .orderBy(desc(wechatAccounts.createdAt))
+    .limit(1);
+
+  return firstAccount?.id || null;
+}
+
+async function syncDrafts(accountId?: number, count?: number) {
+  const resolvedAccountId = await resolveSyncAccountId(accountId);
+  if (!resolvedAccountId) {
+    return NextResponse.json({ success: false, error: '请先配置公众号账号' }, { status: 400 });
+  }
+
+  const result = await listWechatDrafts(resolvedAccountId, {
+    count: count ? Number(count) : 20,
+    noContent: false,
+  });
+
+  let synced = 0;
+  const now = new Date();
+
+  for (const item of result.items) {
+    const firstArticle = item.content.newsItem[0];
+    if (!item.mediaId || !firstArticle?.title) {
+      continue;
+    }
+
+    const existing = await db()
+      .select({ id: wechatDrafts.id })
+      .from(wechatDrafts)
+      .where(eq(wechatDrafts.mediaId, item.mediaId))
+      .limit(1);
+
+    const values: Partial<typeof wechatDrafts.$inferInsert> = {
+      mediaId: item.mediaId,
+      title: firstArticle.title,
+      author: firstArticle.author,
+      digest: firstArticle.digest,
+      content: firstArticle.content,
+      contentHtml: firstArticle.content,
+      coverImage: firstArticle.thumbMediaId,
+      sourceUrl: firstArticle.contentSourceUrl || firstArticle.url,
+      needOpenComment: firstArticle.needOpenComment,
+      onlyFansCanComment: firstArticle.onlyFansCanComment,
+      status: 'draft',
+      updateTime: item.updateTime,
+      fetchedAt: now,
+      updatedAt: now,
+    };
+
+    if (existing.length > 0) {
+      await db()
+        .update(wechatDrafts)
+        .set(values)
+        .where(eq(wechatDrafts.id, existing[0].id));
+    } else {
+      await db()
+        .insert(wechatDrafts)
+        .values({
+          ...values,
+          createTime: item.updateTime,
+          createdAt: now,
+        } as typeof wechatDrafts.$inferInsert);
+    }
+
+    synced += 1;
+  }
+
   return NextResponse.json({
-    success: false,
-    error: '草稿同步功能需要配置微信公众号授权，请先在公众号管理中完成授权',
+    success: true,
+    count: synced,
+    totalCount: result.totalCount,
+    itemCount: result.itemCount,
+    accountId: resolvedAccountId,
+    source: 'wechat_draft_batchget',
   });
 }
 
@@ -251,11 +341,17 @@ async function updateDraft(id: number, note: string | null, status: string | nul
 }
 
 async function clearAllDrafts() {
-  const result = await db().delete(wechatDrafts);
+  const toDelete = await db().select({ id: wechatDrafts.id }).from(wechatDrafts);
+  const deletedCount = toDelete.length;
+
+  if (deletedCount > 0) {
+    await db().delete(wechatDrafts);
+  }
 
   return NextResponse.json({
     success: true,
-    message: '已清空所有草稿',
+    message: deletedCount > 0 ? `已清空 ${deletedCount} 篇草稿` : '草稿箱为空',
+    deletedCount,
   });
 }
 
@@ -281,6 +377,3 @@ async function clearPublishedDrafts() {
     deletedCount: ids.length,
   });
 }
-
-// generateMockDrafts 已移除 - 草稿同步功能需要配置微信公众号授权后实现
-// function generateMockDrafts() { ... }

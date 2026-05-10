@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAllTaskStatuses,
   getTaskStatus,
-  startTask,
-  stopTask,
   runTaskNow,
   initDefaultTasks,
   shutdownAllTasks,
 } from '@/lib/scheduler/service';
 import { apiResponse } from '@/lib/utils/api-helper';
-import { syncAllArticleStats } from '@/lib/wechat/service';
+import { getJobDefinition } from '@/lib/jobs/registry';
 
 // 初始化默认任务（仅在首次请求时执行）
 let initialized = false;
@@ -20,21 +18,20 @@ function ensureTasksInitialized() {
 
   initDefaultTasks({
     syncArticleStats: async (_taskName: string) => {
-      try {
-        await syncAllArticleStats();
-        console.log('[scheduler] Article stats synced successfully');
-      } catch (error) {
-        console.error('[scheduler] syncArticleStats failed:', error);
-        throw error;
+      const result = await getJobDefinition('syncArticleStats')?.run();
+      if (!result?.success) {
+        throw new Error(result?.message || '文章统计同步失败');
       }
     },
     syncWechatDrafts: async (_taskName: string) => {
-      // 微信草稿同步占位 - 可接入具体实现
-      console.log('[scheduler] syncWechatDrafts: placeholder executed');
+      const result = await getJobDefinition('syncWechatDrafts')?.run();
+      if (!result?.success) {
+        throw new Error(result?.message || '微信公众号草稿同步失败。');
+      }
     },
     hotTopicsCache: async (_taskName: string) => {
-      // 热点缓存更新占位 - 可接入具体实现
-      console.log('[scheduler] hotTopicsCache: placeholder executed');
+      const result = await getJobDefinition('refreshHotTopics')?.run();
+      throw new Error(result?.message || '热点缓存自动更新尚未接入真实数据源，请在热门选题页面手动拉取真实热点。');
     },
   });
 }
@@ -59,7 +56,7 @@ export async function GET(_request: NextRequest) {
 
 /**
  * POST /api/scheduler
- * 请求体: { action: 'start' | 'stop' | 'run', taskName?: string }
+ * 请求体: { action: 'run' | 'shutdown', taskName?: string }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -71,6 +68,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         apiResponse.error('Invalid action. Must be one of: start, stop, run, shutdown'),
         { status: 400 }
+      );
+    }
+
+    if (action === 'start' || action === 'stop') {
+      return NextResponse.json(
+        apiResponse.error('API Route 不提供可靠的常驻定时调度，请使用外部 cron/worker 调用 run。'),
+        { status: 501 }
       );
     }
 
@@ -90,32 +94,6 @@ export async function POST(request: NextRequest) {
 
     // 针对单个任务的操作
     switch (action) {
-      case 'start': {
-        const started = startTask(taskName);
-        if (!started) {
-          return NextResponse.json(
-            apiResponse.error(`Task ${taskName} not found`),
-            { status: 404 }
-          );
-        }
-        return NextResponse.json(
-          apiResponse.success({ taskName, action: 'started', status: getTaskStatus(taskName) })
-        );
-      }
-
-      case 'stop': {
-        const stopped = stopTask(taskName);
-        if (!stopped) {
-          return NextResponse.json(
-            apiResponse.error(`Task ${taskName} not found`),
-            { status: 404 }
-          );
-        }
-        return NextResponse.json(
-          apiResponse.success({ taskName, action: 'stopped', status: getTaskStatus(taskName) })
-        );
-      }
-
       case 'run': {
         const runResult = await runTaskNow(taskName);
         if (!runResult.success) {

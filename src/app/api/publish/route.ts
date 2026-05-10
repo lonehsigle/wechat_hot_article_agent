@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   createDraft,
+  getPublishStatus,
   uploadImageFromUrl,
   convertToWechatHtml,
   extractImageUrls,
   getWechatAccount,
+  syncPublishedArticlesFromWechat,
+  toLocalPublishStatus,
 } from '@/lib/wechat/service';
-import { generateArticleImages, type ImageResult } from '@/lib/image/service';
+import { generateArticleImages } from '@/lib/image/service';
 import { db } from '@/lib/db';
 import { publishedArticles, articleStats } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { findUnverifiedGeneratedMarkers } from '@/lib/verification/source-score';
+
+function unverifiedContentResponse(content: string, confirmed: boolean | undefined) {
+  const markers = findUnverifiedGeneratedMarkers(content || '');
+  if (markers.length === 0 || confirmed) return null;
+  return NextResponse.json({
+    success: false,
+    error: `内容包含待核验标记：${markers.join('、')}。请人工核验后设置 confirmUnverified=true 再发布。`,
+    markers,
+  }, { status: 422 });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, accountId, title, content, coverImageUrl, autoSearchImages, images, layoutStyle } = body;
+    const { action, accountId, title, content, coverImageUrl, autoSearchImages, images, layoutStyle, confirmUnverified } = body;
 
     if (action === 'search-images') {
       if (!title || !content) {
@@ -84,6 +98,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'publish-with-images') {
+      const unverified = unverifiedContentResponse(content, confirmUnverified);
+      if (unverified) return unverified;
+
       const account = await getWechatAccount(accountId);
       if (!account) {
         return NextResponse.json({ success: false, error: '公众号账号不存在' }, { status: 400 });
@@ -192,6 +209,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'publish') {
+      const unverified = unverifiedContentResponse(content, confirmUnverified);
+      if (unverified) return unverified;
+
       const account = await getWechatAccount(accountId);
       if (!account) {
         return NextResponse.json({ success: false, error: '公众号账号不存在' }, { status: 400 });
@@ -280,6 +300,45 @@ export async function POST(request: NextRequest) {
         articleId: insertedArticle.id,
         message: '文章已成功上传到微信公众号草稿箱',
       });
+    }
+
+    if (action === 'refresh-status') {
+      const articleId = parseInt(String(body.articleId || ''), 10);
+      const publishId = String(body.publishId || '');
+      if (!accountId || !publishId || isNaN(articleId)) {
+        return NextResponse.json({ success: false, error: 'accountId、articleId 和 publishId 参数不能为空' }, { status: 400 });
+      }
+
+      const status = await getPublishStatus(Number(accountId), publishId);
+      const updateData: Partial<typeof publishedArticles.$inferInsert> = {
+        publishStatus: toLocalPublishStatus(status.publishStatus),
+        wechatPublishId: status.publishId,
+        wechatMsgDataId: status.msgDataId,
+        wechatMediaId: status.msgDataId,
+        wechatArticleUrl: status.articleUrl,
+        articleUrl: status.articleUrl,
+        publishError: status.failReason,
+        publishDetail: JSON.stringify(status.raw),
+        updatedAt: new Date(),
+      };
+      if (status.publishStatus === 'publish_success') {
+        updateData.publishTime = new Date();
+      }
+      const [article] = await db().update(publishedArticles).set(updateData).where(eq(publishedArticles.id, articleId)).returning();
+
+      return NextResponse.json({
+        success: true,
+        status,
+        article,
+      });
+    }
+
+    if (action === 'sync-published-list') {
+      if (!accountId) {
+        return NextResponse.json({ success: false, error: 'accountId参数不能为空' }, { status: 400 });
+      }
+      const result = await syncPublishedArticlesFromWechat(Number(accountId));
+      return NextResponse.json({ success: result.success, result }, { status: result.success ? 200 : 500 });
     }
 
     if (action === 'preview-html') {

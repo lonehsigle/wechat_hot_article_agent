@@ -257,6 +257,40 @@ describe('/api/hot-topics', () => {
       expect(data.error).toContain('Invalid platform');
     });
 
+    it('reports source contracts without treating unconfigured platforms as production ready', async () => {
+      const { POST } = await import('@/app/api/hot-topics/route');
+      const req = createRequest('http://localhost/api/hot-topics', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'source-contracts' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.contracts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            platform: 'douyin',
+            sourceContract: 'crawler-worker',
+            status: 'blocked',
+          }),
+          expect.objectContaining({
+            platform: 'xiaohongshu',
+            sourceContract: 'crawler-worker',
+            status: 'blocked',
+          }),
+          expect.objectContaining({
+            platform: 'manual-import',
+            sourceContract: 'manual-import',
+            status: 'ready',
+          }),
+        ])
+      );
+    });
+
     it('should fetch platform topics with cookie and real data', async () => {
       const { POST } = await import('@/app/api/hot-topics/route');
       const fetchMock = vi.mocked(global.fetch);
@@ -466,7 +500,26 @@ describe('/api/hot-topics', () => {
       expect(data.data.isRealData).toBe(true);
     });
 
-    it('should fetch all platforms without cookies', async () => {
+    it('should reject fetch-all without cookies when demo data is disabled', async () => {
+      const { POST } = await import('@/app/api/hot-topics/route');
+      mockDbDefault = [{ id: 1 }];
+
+      const req = createRequest('http://localhost/api/hot-topics', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'fetch-all' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('未获取到真实热点数据');
+    });
+
+    it('should fetch all platforms without cookies only when demo data is enabled', async () => {
+      process.env.ALLOW_DEMO_DATA = 'true';
       const { POST } = await import('@/app/api/hot-topics/route');
       mockDbDefault = [{ id: 1 }];
 

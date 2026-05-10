@@ -17,10 +17,13 @@ data/
 
 # Environment files - 包含API密钥等敏感信息
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+!.env.example
+!.env.*.example
 
 # Logs
 logs/

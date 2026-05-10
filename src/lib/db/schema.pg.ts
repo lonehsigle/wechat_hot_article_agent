@@ -127,6 +127,10 @@ export const publishedArticles = pgTable('published_articles', {
   publishStatus: text('publish_status').default('draft'),
   publishTime: timestamp('publish_time', { mode: 'date' }),
   wechatMediaId: text('wechat_media_id'),
+  wechatPublishId: text('wechat_publish_id'),
+  wechatMsgDataId: text('wechat_msg_data_id'),
+  publishError: text('publish_error'),
+  publishDetail: text('publish_detail'),
   wechatArticleUrl: text('wechat_article_url'),
   sourceContentId: integer('source_content_id'),
   sourceTitle: text('source_title'),
@@ -174,6 +178,10 @@ export const articleStatsDaily = pgTable('article_stats_daily', {
   dailyLikeGrowth: integer('daily_like_growth').default(0),
   dailyCommentGrowth: integer('daily_comment_growth').default(0),
   dailyShareGrowth: integer('daily_share_growth').default(0),
+  sourceBreakdown: text('source_breakdown'),
+  rawSummary: text('raw_summary'),
+  syncStatus: text('sync_status').default('synced'),
+  syncMessage: text('sync_message'),
 });
 
 export const writingTechniques = pgTable('writing_techniques', {
@@ -247,9 +255,28 @@ export const materialLibrary = pgTable('material_library', {
   dataPoints: text('data_points'),
   tags: text('tags'),
   topicId: integer('topic_id'),
+  sourceScore: integer('source_score').default(0),
+  sourceType: text('source_type').default('llm'),
+  verificationStatus: text('verification_status').default('needs_review'),
+  sourceSummary: text('source_summary'),
   isUsed: boolean('is_used').default(false),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+});
+
+export const jobRuns = pgTable('job_runs', {
+  id: serial('id').primaryKey(),
+  jobName: text('job_name').notNull(),
+  triggeredBy: text('triggered_by').default('manual'),
+  inputSummary: text('input_summary'),
+  status: text('status').notNull().default('running'),
+  outputSummary: text('output_summary'),
+  errorMessage: text('error_message'),
+  auditWarnings: text('audit_warnings'),
+  startedAt: timestamp('started_at', { mode: 'date' }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { mode: 'date' }),
+  durationMs: integer('duration_ms').default(0),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 });
 
 export const writingStyles = pgTable('writing_styles', {

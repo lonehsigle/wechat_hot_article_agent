@@ -383,13 +383,13 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       const res = await fetch(`/api/subscriptions?action=run&auth_key=${wechatAuthKey}`);
       const data = await res.json();
       if (data.success) {
-        alert(`监控完成！处理了 ${data.results?.length || 0} 个订阅`);
+        alert(`手动检查完成！处理了 ${data.results?.length || 0} 个订阅`);
         loadSubscriptions();
       } else {
-        alert(data.error || '监控失败');
+        alert(data.error || '手动检查失败');
       }
     } catch (error) {
-      alert('监控失败');
+      alert('手动检查失败');
     } finally {
       setMonitorRunning(false);
     }
@@ -806,7 +806,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       });
       const data = await res.json();
       if (data.success) {
-        alert(`成功删除 ${data.deleted} 篇草稿`);
+        alert(`成功删除 ${data.deletedCount} 篇草稿`);
         setSelectedDrafts(new Set());
         loadDrafts();
         loadDraftStats();
@@ -837,7 +837,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       });
       const data = await res.json();
       if (data.success) {
-        alert(`成功清理 ${data.deleted} 篇已发布草稿`);
+        alert(`成功清理 ${data.deletedCount} 篇已发布草稿`);
         loadDrafts();
         loadDraftStats();
       } else {
@@ -868,7 +868,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       });
       const data = await res.json();
       if (data.success) {
-        alert(`成功清空 ${data.deleted} 篇草稿`);
+        alert(`成功清空 ${data.deletedCount} 篇草稿`);
         setSelectedDrafts(new Set());
         loadDrafts();
         loadDraftStats();
@@ -2400,14 +2400,14 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                     cursor: monitorRunning || !wechatLoggedIn || subscriptions.filter(s => s.monitorEnabled).length === 0 ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {monitorRunning ? '监控中...' : '▶️ 运行监控'}
+                  {monitorRunning ? '检查中...' : '▶️ 手动检查一次'}
                 </button>
               </div>
             </div>
             
             {!wechatLoggedIn && (
               <div style={{ padding: '20px', backgroundColor: '#fef3c7', borderRadius: '8px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '14px', color: '#92400e' }}>⚠️ 请先在"公众号采集"标签页登录微信，才能运行监控</p>
+                <p style={{ fontSize: '14px', color: '#92400e' }}>⚠️ 请先在"公众号采集"标签页登录微信，才能手动检查订阅</p>
               </div>
             )}
 
@@ -2443,14 +2443,14 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                           borderRadius: '4px', 
                           fontSize: '12px' 
                         }}>
-                          {sub.monitorEnabled ? '监控中' : '已暂停'}
+                          {sub.monitorEnabled ? '已启用' : '已暂停'}
                         </span>
                       </div>
                       <div style={{ fontSize: '13px', color: '#6b7280', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                         <span>📄 文章: {sub.totalArticles || 0}</span>
-                        <span>⏱️ 间隔: {sub.monitorInterval || 300}秒</span>
+                        <span>⏱️ 建议检查间隔: {sub.monitorInterval || 300}秒</span>
                         {sub.lastMonitorAt && (
-                          <span>🕐 上次监控: {new Date(sub.lastMonitorAt).toLocaleString('zh-CN')}</span>
+                          <span>🕐 上次检查: {new Date(sub.lastMonitorAt).toLocaleString('zh-CN')}</span>
                         )}
                       </div>
                     </div>

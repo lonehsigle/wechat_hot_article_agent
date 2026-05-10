@@ -55,6 +55,7 @@ describe('/api/monitor', () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.status).toBeDefined();
+      expect(data.scheduler.supported).toBe(false);
     });
 
     it('should return monitor logs', async () => {
@@ -109,7 +110,7 @@ describe('/api/monitor', () => {
   });
 
   describe('POST', () => {
-    it('should start monitor successfully', async () => {
+    it('should reject API Route resident monitor startup', async () => {
       const { POST } = await import('@/app/api/monitor/route');
       mockDbQueue.push([]); // logMonitorEvent
 
@@ -122,12 +123,13 @@ describe('/api/monitor', () => {
       const res = await POST(req);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('API Route 不提供可靠的常驻后台监控');
       expect(data.interval).toBe(60);
     });
 
-    it('should restart monitor when already running', async () => {
+    it('should not report restart success for unsupported resident monitor', async () => {
       const { POST } = await import('@/app/api/monitor/route');
       mockDbQueue.push([]); // first start logMonitorEvent
       mockDbQueue.push([]); // second start logMonitorEvent
@@ -147,8 +149,8 @@ describe('/api/monitor', () => {
       const res = await POST(req2);
       const data = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(res.status).toBe(501);
+      expect(data.success).toBe(false);
       expect(data.interval).toBe(120);
     });
 

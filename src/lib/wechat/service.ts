@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { wechatAccounts, publishedArticles, articleStats } from '../db/schema';
+import { wechatAccounts, publishedArticles, articleStats, articleStatsDaily } from '../db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 
 interface WechatAccountConfig {
@@ -243,6 +243,26 @@ export interface DraftResult {
   mediaId: string;
 }
 
+export interface WechatDraftArticle {
+  title: string;
+  author: string;
+  digest: string;
+  content: string;
+  contentSourceUrl: string;
+  thumbMediaId: string;
+  url: string;
+  needOpenComment: boolean;
+  onlyFansCanComment: boolean;
+}
+
+export interface WechatDraftItem {
+  mediaId: string;
+  updateTime: Date | null;
+  content: {
+    newsItem: WechatDraftArticle[];
+  };
+}
+
 export async function createDraft(
   accountId: number,
   articles: ArticleMedia[]
@@ -290,6 +310,58 @@ export async function createDraft(
   };
 }
 
+export async function listWechatDrafts(
+  accountId: number,
+  options?: { offset?: number; count?: number; noContent?: boolean }
+): Promise<{ totalCount: number; itemCount: number; items: WechatDraftItem[] }> {
+  const accessToken = await getAccessToken(accountId);
+  const url = `https://api.weixin.qq.com/cgi-bin/draft/batchget?access_token=${accessToken}`;
+  const count = Math.min(Math.max(options?.count ?? 20, 1), 20);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      offset: options?.offset ?? 0,
+      count,
+      no_content: options?.noContent ? 1 : 0,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (data.errcode) {
+    throw new Error(`获取草稿列表失败: ${data.errmsg} (${data.errcode})`);
+  }
+
+  const items = Array.isArray(data.item) ? data.item : [];
+  return {
+    totalCount: Number(data.total_count || 0),
+    itemCount: Number(data.item_count || items.length),
+    items: items.map((item: Record<string, any>) => ({
+      mediaId: String(item.media_id || ''),
+      updateTime: item.update_time ? new Date(Number(item.update_time) * 1000) : null,
+      content: {
+        newsItem: Array.isArray(item.content?.news_item)
+          ? item.content.news_item.map((article: Record<string, any>) => ({
+              title: String(article.title || ''),
+              author: String(article.author || ''),
+              digest: String(article.digest || ''),
+              content: String(article.content || ''),
+              contentSourceUrl: String(article.content_source_url || ''),
+              thumbMediaId: String(article.thumb_media_id || ''),
+              url: String(article.url || ''),
+              needOpenComment: Number(article.need_open_comment || 0) === 1,
+              onlyFansCanComment: Number(article.only_fans_can_comment || 0) === 1,
+            }))
+          : [],
+      },
+    })),
+  };
+}
+
 export async function publishDraft(
   accountId: number,
   mediaId: string
@@ -317,6 +389,144 @@ export async function publishDraft(
   return {
     publishId: data.publish_id,
     msgDataId: data.msg_data_id,
+  };
+}
+
+export interface PublishStatusResult {
+  publishId: string;
+  publishStatus: string;
+  publishStatusName: string;
+  articleUrl?: string;
+  msgDataId?: string;
+  failReason?: string;
+  raw: Record<string, any>;
+}
+
+function normalizePublishStatus(status: number | string | undefined): { code: string; name: string; localStatus: string } {
+  const value = String(status ?? '');
+  const map: Record<string, { code: string; name: string; localStatus: string }> = {
+    '0': { code: 'publishing', name: '发布中', localStatus: 'pending' },
+    '1': { code: 'publish_success', name: '发布成功', localStatus: 'published' },
+    '2': { code: 'publish_failed', name: '发布失败', localStatus: 'failed' },
+    publish_success: { code: 'publish_success', name: '发布成功', localStatus: 'published' },
+    publish_failed: { code: 'publish_failed', name: '发布失败', localStatus: 'failed' },
+  };
+  return map[value] || { code: value || 'unknown', name: '未知状态', localStatus: 'pending' };
+}
+
+export function toLocalPublishStatus(status: string): string {
+  return normalizePublishStatus(status).localStatus;
+}
+
+export async function getPublishStatus(accountId: number, publishId: string): Promise<PublishStatusResult> {
+  const accessToken = await getAccessToken(accountId);
+  const response = await fetch(`https://api.weixin.qq.com/cgi-bin/freepublish/get?access_token=${accessToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publish_id: publishId }),
+  });
+  const data = await response.json();
+
+  if (data.errcode) {
+    throw new Error(`查询发布状态失败: ${data.errmsg} (${data.errcode})`);
+  }
+
+  const status = normalizePublishStatus(data.publish_status);
+  const firstArticle = Array.isArray(data.article_detail?.item)
+    ? data.article_detail.item[0]
+    : Array.isArray(data.article_detail?.news_item)
+      ? data.article_detail.news_item[0]
+      : undefined;
+
+  return {
+    publishId,
+    publishStatus: status.code,
+    publishStatusName: status.name,
+    articleUrl: firstArticle?.article_url || firstArticle?.url || data.article_url,
+    msgDataId: data.msg_data_id ? String(data.msg_data_id) : undefined,
+    failReason: data.fail_idx !== undefined ? `fail_idx=${data.fail_idx}` : data.fail_reason,
+    raw: data,
+  };
+}
+
+export async function listPublishedArticlesFromWechat(
+  accountId: number,
+  options?: { offset?: number; count?: number; noContent?: boolean }
+) {
+  const accessToken = await getAccessToken(accountId);
+  const count = Math.min(Math.max(options?.count ?? 20, 1), 20);
+  const response = await fetch(`https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token=${accessToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      offset: options?.offset ?? 0,
+      count,
+      no_content: options?.noContent ? 1 : 0,
+    }),
+  });
+  const data = await response.json();
+
+  if (data.errcode) {
+    throw new Error(`获取已发布列表失败: ${data.errmsg} (${data.errcode})`);
+  }
+
+  const items = Array.isArray(data.item) ? data.item : [];
+  return {
+    totalCount: Number(data.total_count || 0),
+    itemCount: Number(data.item_count || items.length),
+    items: items.map((item: Record<string, any>) => {
+      const firstArticle = Array.isArray(item.content?.news_item) ? item.content.news_item[0] : {};
+      return {
+        articleUrl: String(firstArticle?.url || item.article_url || ''),
+        title: String(firstArticle?.title || item.title || ''),
+        msgDataId: item.msg_data_id ? String(item.msg_data_id) : undefined,
+        publishId: item.publish_id ? String(item.publish_id) : undefined,
+        publishTime: item.update_time ? new Date(Number(item.update_time) * 1000) : null,
+        raw: item,
+      };
+    }),
+  };
+}
+
+export async function syncPublishedArticlesFromWechat(accountId: number) {
+  const database = db();
+  const result = await listPublishedArticlesFromWechat(accountId, { count: 20, noContent: false });
+  const items: Array<Record<string, unknown>> = [];
+  let failed = 0;
+
+  for (const item of result.items) {
+    try {
+      if (!item.articleUrl && !item.msgDataId) {
+        failed += 1;
+        continue;
+      }
+
+      const [inserted] = await database.insert(publishedArticles).values({
+        title: item.title || '微信已发布文章',
+        content: '',
+        wechatAccountId: accountId,
+        publishStatus: 'published',
+        publishTime: item.publishTime,
+        wechatPublishId: item.publishId,
+        wechatMsgDataId: item.msgDataId,
+        wechatMediaId: item.msgDataId,
+        wechatArticleUrl: item.articleUrl,
+        articleUrl: item.articleUrl,
+        publishDetail: JSON.stringify(item.raw || {}),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning();
+      items.push(inserted || item);
+    } catch (error) {
+      failed += 1;
+    }
+  }
+
+  return {
+    success: failed === 0,
+    synced: items.length,
+    failed,
+    items,
   };
 }
 
@@ -357,6 +567,128 @@ export async function getArticleStats(
     commentCount: article.comment_count || 0,
     shareCount: article.share_num || 0,
   };
+}
+
+async function callDatacube(accountId: number, endpoint: string, beginDate: string, endDate: string) {
+  const accessToken = await getAccessToken(accountId);
+  const response = await fetch(`https://api.weixin.qq.com/datacube/${endpoint}?access_token=${accessToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ begin_date: beginDate, end_date: endDate }),
+  });
+  const data = await response.json();
+  if (data.errcode) {
+    throw new Error(`datacube ${endpoint} 失败: ${data.errmsg} (${data.errcode})`);
+  }
+  return data;
+}
+
+export interface DatacubeSyncResult {
+  success: boolean;
+  synced: number;
+  failed: number;
+  skipped: number;
+  details: Array<{
+    articleId: number;
+    msgDataId: string;
+    status: 'synced' | 'failed' | 'skipped' | 'no_data';
+    message?: string;
+  }>;
+}
+
+export async function syncDatacubeDailyStats(options: {
+  date: string;
+  articleIds?: number[];
+  force?: boolean;
+}): Promise<DatacubeSyncResult> {
+  const database = db();
+  const result: DatacubeSyncResult = { success: true, synced: 0, failed: 0, skipped: 0, details: [] };
+
+  let articlesQuery = database
+    .select()
+    .from(publishedArticles)
+    .where(eq(publishedArticles.publishStatus, 'published'));
+
+  if (options.articleIds?.length) {
+    articlesQuery = database
+      .select()
+      .from(publishedArticles)
+      .where(inArray(publishedArticles.id, options.articleIds));
+  }
+
+  const articles = await articlesQuery;
+  for (const article of articles) {
+    const msgDataId = article.wechatMsgDataId || article.wechatMediaId || '';
+    if (!article.wechatAccountId || !msgDataId) {
+      result.skipped += 1;
+      result.details.push({
+        articleId: article.id,
+        msgDataId,
+        status: 'skipped',
+        message: 'Missing wechatAccountId or msgDataId',
+      });
+      continue;
+    }
+
+    try {
+      const [summary, userRead, total] = await Promise.all([
+        callDatacube(article.wechatAccountId, 'getarticlesummary', options.date, options.date),
+        callDatacube(article.wechatAccountId, 'getuserread', options.date, options.date),
+        callDatacube(article.wechatAccountId, 'getarticletotal', options.date, options.date),
+      ]);
+
+      const summaryList = Array.isArray(summary.list) ? summary.list : [];
+      const totalList = Array.isArray(total.list) ? total.list : [];
+      const userReadList = Array.isArray(userRead.list) ? userRead.list : [];
+      const matched = [...summaryList, ...totalList].find((item: Record<string, any>) =>
+        String(item.msgid || item.msg_data_id || item.ref_date || '') === msgDataId ||
+        String(item.title || '') === String(article.title || '')
+      ) || summaryList[0] || totalList[0] || null;
+
+      if (!matched) {
+        result.skipped += 1;
+        result.details.push({
+          articleId: article.id,
+          msgDataId,
+          status: 'no_data',
+          message: '微信 datacube 未返回该文章统计；低阅读量内容可能不返回统计。',
+        });
+        continue;
+      }
+
+      await database.insert(articleStatsDaily).values({
+        articleId: article.id,
+        date: options.date,
+        totalRead: Number(matched.int_page_read_count || matched.total_read || matched.read_count || 0),
+        totalLike: Number(matched.like_count || matched.old_like_num || 0),
+        totalComment: Number(matched.comment_count || 0),
+        totalShare: Number(matched.share_count || 0),
+        totalCollect: Number(matched.add_to_fav_count || matched.collect_count || 0),
+        dailyReadGrowth: Number(matched.int_page_read_count || matched.total_read || matched.read_count || 0),
+        dailyLikeGrowth: Number(matched.like_count || matched.old_like_num || 0),
+        dailyCommentGrowth: Number(matched.comment_count || 0),
+        dailyShareGrowth: Number(matched.share_count || 0),
+        sourceBreakdown: JSON.stringify(userReadList),
+        rawSummary: JSON.stringify({ summary, total }),
+        syncStatus: 'synced',
+        syncMessage: 'datacube synced',
+      });
+
+      result.synced += 1;
+      result.details.push({ articleId: article.id, msgDataId, status: 'synced' });
+    } catch (error) {
+      result.failed += 1;
+      result.success = false;
+      result.details.push({
+        articleId: article.id,
+        msgDataId,
+        status: 'failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return result;
 }
 
 export interface SyncStatsResult {

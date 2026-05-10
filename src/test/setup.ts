@@ -51,6 +51,12 @@ vi.mock('next/server', () => ({
         },
       };
     },
+    next: () => ({ status: 200, type: 'next' }),
+    redirect: (url: URL | string, init?: ResponseInit) => ({
+      status: init?.status || 307,
+      type: 'redirect',
+      url: url.toString(),
+    }),
   },
 }));
 

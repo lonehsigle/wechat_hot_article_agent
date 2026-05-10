@@ -8,6 +8,49 @@ import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags'
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
 const DEMO_DATA_DISABLED_MARKER = '当前已禁用演示数据';
 
+function getHotTopicSourceContracts() {
+  const hasCrawlerWorker = !!process.env.HOT_TOPIC_CRAWLER_URL;
+  const hasThirdParty = !!process.env.HOT_TOPIC_PROVIDER_API_KEY;
+  return [
+    {
+      platform: 'weibo',
+      sourceContract: 'public-web',
+      status: 'degraded',
+      note: '可尝试公开热榜接口；失败时不能伪造生产数据。',
+    },
+    {
+      platform: 'zhihu',
+      sourceContract: 'public-web',
+      status: 'degraded',
+      note: '可尝试公开热榜接口；失败时不能伪造生产数据。',
+    },
+    {
+      platform: 'baidu',
+      sourceContract: 'public-web',
+      status: 'degraded',
+      note: '可尝试公开热榜页面解析；失败时不能伪造生产数据。',
+    },
+    {
+      platform: 'douyin',
+      sourceContract: hasThirdParty ? 'third-party-api' : hasCrawlerWorker ? 'crawler-worker' : 'crawler-worker',
+      status: hasThirdParty || hasCrawlerWorker ? 'degraded' : 'blocked',
+      note: '抖音无本系统已配置的无认证官方热点源；需官方授权、第三方数据源、人工导入或 crawler worker。',
+    },
+    {
+      platform: 'xiaohongshu',
+      sourceContract: hasThirdParty ? 'third-party-api' : hasCrawlerWorker ? 'crawler-worker' : 'crawler-worker',
+      status: hasThirdParty || hasCrawlerWorker ? 'degraded' : 'blocked',
+      note: '小红书无本系统已配置的无认证官方热点源；需官方授权、第三方数据源、人工导入或 crawler worker。',
+    },
+    {
+      platform: 'manual-import',
+      sourceContract: 'manual-import',
+      status: 'ready',
+      note: '无稳定平台 API 时，人工导入是可审计的生产替代路径。',
+    },
+  ];
+}
+
 /**
  * Redis 风格的内存缓存实现
  * 无需外部依赖，使用简单 Map
@@ -205,13 +248,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, cookies } = body;
 
+    if (action === 'source-contracts') {
+      return NextResponse.json(apiResponse.success({ contracts: getHotTopicSourceContracts() }));
+    }
+
     if (action === 'fetch-all') {
-      const results = await fetchAllPlatforms(cookies || {});
+      const { topics: results, errors } = await fetchAllPlatforms(cookies || {});
       const hasRealData = results.some(r => r.isRealData);
+      const allPlatformsFailed = PLATFORMS.every(platform => errors[platform]);
+      if (results.length === 0 && allPlatformsFailed) {
+        return NextResponse.json(apiResponse.error('未获取到真实热点数据，请配置有效 Cookie 或开启 ALLOW_DEMO_DATA=true 进行开发演示'), { status: 501 });
+      }
       return NextResponse.json(apiResponse.success({
         total: results.length,
         topics: results,
         isRealData: hasRealData,
+        errors,
         message: hasRealData ? undefined : '未获取到真实热点数据',
       }));
     }
@@ -270,7 +322,7 @@ async function fetchAllPlatforms(cookies: Record<string, string>) {
     }
   }
 
-  return allTopics;
+  return { topics: allTopics, errors: platformErrors };
 }
 
 async function fetchPlatformTopics(platform: string, cookie?: string) {
@@ -520,10 +572,10 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
             }
           }
         } catch (e) {
-          console.log('[hot-topics] 抖音聚合接口获取失败，降级到模拟数据');
+          console.log('[hot-topics] 抖音聚合接口获取失败，是否允许演示数据由 ALLOW_DEMO_DATA 决定');
         }
         if (topics.length === 0) {
-          console.log('[hot-topics] 抖音热点：官方无公开无认证热点 API，当前通过聚合数据/模拟数据提供');
+          console.log('[hot-topics] 抖音热点：官方无公开无认证热点 API，当前未获取到可保存的真实热点');
         }
         break;
       }
@@ -564,10 +616,10 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
             }
           }
         } catch (e) {
-          console.log('[hot-topics] 小红书趋势接口获取失败，降级到模拟数据');
+          console.log('[hot-topics] 小红书趋势接口获取失败，是否允许演示数据由 ALLOW_DEMO_DATA 决定');
         }
         if (topics.length === 0) {
-          console.log('[hot-topics] 小红书热点：官方无公开无认证热点 API，当前通过搜索趋势/模拟数据提供');
+          console.log('[hot-topics] 小红书热点：官方无公开无认证热点 API，当前未获取到可保存的真实热点');
         }
         break;
       }

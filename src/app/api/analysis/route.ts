@@ -3,18 +3,6 @@ import { db } from '@/lib/db';
 import { analysisTasks, analysisArticles, insightReports, generatedArticles } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
-interface ArticleData {
-  title: string;
-  author: string;
-  url: string;
-  readCount: number;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  publishDate?: string;
-  content?: string;
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const taskId = searchParams.get('taskId');
@@ -76,30 +64,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: '请输入关键词' }, { status: 400 });
       }
 
-      const [task] = await database.insert(analysisTasks).values({
-        keyword: keyword.trim(),
-        status: 'pending',
-        totalArticles: 0,
-        analyzedArticles: 0,
-      }).returning();
-
-      // 安全：正确处理异步错误
-      analyzeKeyword(task.id, keyword.trim()).catch((error) => {
-        console.error('关键词分析任务失败:', error);
-        // 更新任务状态为失败
-        database.update(analysisTasks)
-          .set({
-            status: 'failed',
-            errorMessage: error instanceof Error ? error.message : '未知错误',
-            completedAt: new Date(),
-          })
-          .where(eq(analysisTasks.id, task.id))
-          .catch((updateError) => {
-            console.error('更新任务状态失败:', updateError);
-          });
-      });
-
-      return NextResponse.json({ success: true, taskId: task.id });
+      return NextResponse.json({
+        success: false,
+        error: '选题分析后台任务需要可靠 worker/队列承载，当前 API Route 不启动后台长任务。请通过 save-articles/save-report 写入真实分析结果，或接入独立 worker 后再启用。',
+      }, { status: 501 });
     }
 
     if (action === 'update-progress') {
@@ -191,17 +159,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Analysis API error:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '操作失败' }, { status: 500 });
-  }
-}
-
-async function analyzeKeyword(taskId: number, keyword: string) {
-  try {
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/analysis/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId, keyword }),
-    });
-  } catch (error) {
-    console.error('Failed to start analysis:', error);
   }
 }

@@ -91,16 +91,20 @@ async function getMonitorStatus() {
 
   return NextResponse.json({
     success: true,
-    status: 'running',
+    status: 'idle',
     lastHotTopicsFetch: recentTopics[0]?.fetchedAt || null,
     lastArticleFetch: recentArticles[0]?.createdAt || null,
     activeSubscriptions: activeSubscriptions.length,
     blackHorseCount: blackHorses.length,
     platforms: PLATFORMS.map(p => ({
       name: p,
-      status: 'active',
+      status: 'idle',
       lastFetch: recentTopics[0]?.fetchedAt || null,
     })),
+    scheduler: {
+      supported: false,
+      message: 'API Route 不提供可靠的常驻后台监控；请使用 /api/scheduler 或独立任务服务承载定时执行。',
+    },
   });
 }
 
@@ -142,39 +146,14 @@ async function getAlerts() {
   });
 }
 
-// 全局监控状态（注意：Next.js 热重载会重置此状态）
-let monitorTimer: ReturnType<typeof setInterval> | null = null;
-let monitorIntervalSeconds = 300;
-
 async function startMonitor(interval: number) {
-  monitorIntervalSeconds = interval;
-
-  // 清除已有的定时器
-  if (monitorTimer) {
-    clearInterval(monitorTimer);
-    monitorTimer = null;
-  }
-
-  await logMonitorEvent('monitor_started', `监控已启动，间隔 ${interval} 秒`);
-
-  // TODO: 生产环境应使用独立的定时任务服务（如 node-cron / bullmq / systemd timer）
-  // 当前在 Next.js API Route 中使用 setInterval 仅用于演示，服务端部署后会话保持不可靠
-  monitorTimer = setInterval(async () => {
-    try {
-      await runMonitorCycle();
-    } catch (error) {
-      console.error('[monitor] 定时监控执行失败:', error);
-      await logMonitorEvent('monitor_error', error instanceof Error ? error.message : '定时监控执行失败');
-    }
-  }, interval * 1000);
+  await logMonitorEvent('monitor_start_rejected', `拒绝在 API Route 中启动常驻监控，目标间隔 ${interval} 秒`);
 
   return NextResponse.json({
-    success: true,
-    message: `热点监控已启动（间隔 ${interval} 秒）。注意：API Route 的定时器在服务端重启后会丢失，生产环境请使用独立定时任务服务。`,
+    success: false,
+    error: 'API Route 不提供可靠的常驻后台监控，请使用 /api/scheduler 或独立任务服务承载定时执行。',
     interval,
-    isRealData: true,
-    nextRunIn: interval,
-  });
+  }, { status: 501 });
 }
 
 async function runMonitorCycle() {
@@ -208,11 +187,6 @@ async function runMonitorCycle() {
 }
 
 async function stopMonitor() {
-  if (monitorTimer) {
-    clearInterval(monitorTimer);
-    monitorTimer = null;
-  }
-
   await logMonitorEvent('monitor_stopped', '监控已停止');
 
   return NextResponse.json({

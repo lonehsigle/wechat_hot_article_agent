@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncAllArticleStats } from '@/lib/wechat/service';
+import { syncAllArticleStats, syncDatacubeDailyStats } from '@/lib/wechat/service';
 import { apiResponse } from '@/lib/utils/api-helper';
 
 /**
@@ -9,7 +9,27 @@ import { apiResponse } from '@/lib/utils/api-helper';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { articleIds, force } = body;
+    const { articleIds, force, mode, date } = body;
+
+    if (mode === 'datacube') {
+      const syncDate = typeof date === 'string'
+        ? date
+        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const result = await syncDatacubeDailyStats({
+        date: syncDate,
+        articleIds: Array.isArray(articleIds) ? articleIds.map(Number) : undefined,
+        force: !!force,
+      });
+
+      return NextResponse.json(apiResponse.success({
+        mode: 'datacube',
+        date: syncDate,
+        synced: result.synced,
+        failed: result.failed,
+        skipped: result.skipped,
+        details: result.details,
+      }), { status: result.success ? 200 : 500 });
+    }
 
     const result = await syncAllArticleStats({
       articleIds: Array.isArray(articleIds) ? articleIds.map(Number) : undefined,

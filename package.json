@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "bash scripts/verify.sh"
   },
   "dependencies": {
     "@types/cheerio": "^0.22.35",

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { materialLibrary, hotTopics } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { unifiedSearch, type SearchConfig } from '@/lib/search/service';
+import { scoreMaterialSources } from '@/lib/verification/source-score';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
@@ -13,6 +15,7 @@ interface HotTopic {
   hotValue: number;
   description?: string;
   category?: string;
+  url?: string;
 }
 
 interface MaterialData {
@@ -26,6 +29,52 @@ interface MaterialData {
   dataPoints: string[];
   tags: string[];
   topicId?: number;
+}
+
+interface RelatedArticle {
+  title: string;
+  summary: string;
+  url: string;
+}
+
+function markAiGeneratedMaterial(material: MaterialData, topic: HotTopic, articles: RelatedArticle[]): MaterialData {
+  const sourceTags = articles.length > 0
+    ? ['AI生成', '待核验', '基于搜索摘要']
+    : ['AI生成', '待核验', '无外部文章'];
+
+  return {
+    ...material,
+    source: `AI生成素材-热点采集-${topic.platform}`,
+    sourceUrl: articles[0]?.url || topic.url,
+    dataPoints: [
+      ...material.dataPoints,
+      '素材由模型生成，事实、数据与案例需人工核验后使用',
+    ],
+    tags: Array.from(new Set([...material.tags, ...sourceTags])),
+  };
+}
+
+function serializeMaterialForInsert(material: MaterialData) {
+  const scored = scoreMaterialSources({
+    urls: material.sourceUrl ? [material.sourceUrl] : [],
+    sourceType: material.source.includes('AI生成') ? 'llm' : 'search',
+    aiGenerated: material.tags.includes('AI生成'),
+  });
+
+  return {
+    ...material,
+    keyPoints: material.keyPoints ? JSON.stringify(material.keyPoints) : null,
+    quotes: material.quotes ? JSON.stringify(material.quotes) : null,
+    dataPoints: material.dataPoints ? JSON.stringify(material.dataPoints) : null,
+    tags: material.tags ? JSON.stringify(material.tags) : null,
+    sourceScore: scored.sourceScore,
+    sourceType: scored.sourceType,
+    verificationStatus: scored.verificationStatus,
+    sourceSummary: scored.sourceSummary,
+    isUsed: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 }
 
 async function callLLM(prompt: string): Promise<string> {
@@ -93,10 +142,10 @@ async function extractMaterialsFromTopic(topic: HotTopic): Promise<MaterialData[
     }
     const materials = JSON.parse(jsonMatch[0]);
     
-    return materials.map((m: any) => ({
+    return materials.map((m: any) => markAiGeneratedMaterial({
       type: 'hot_topic_material',
-      source: `热点采集-${topic.platform}`,
-      sourceUrl: undefined,
+      source: '',
+      sourceUrl: topic.url,
       title: m.title,
       content: m.content,
       keyPoints: m.keyPoints || [],
@@ -104,50 +153,47 @@ async function extractMaterialsFromTopic(topic: HotTopic): Promise<MaterialData[
       dataPoints: m.dataPoints || [],
       tags: m.tags || [],
       topicId: topic.id,
-    }));
+    }, topic, []));
   } catch (error) {
     console.error('Extract materials error:', error);
     return [];
   }
 }
 
-async function searchRelatedArticles(keyword: string): Promise<{ title: string; summary: string; url: string }[]> {
-  const prompt = `你是一个信息搜索助手。请针对关键词"${keyword}"，模拟搜索结果，生成5篇相关文章的标题和摘要。
+function getSearchConfig(): SearchConfig {
+  return {
+    tavilyApiKey: process.env.TAVILY_API_KEY,
+    tiangongApiKey: process.env.TIANGONG_API_KEY,
+    minimaxApiKey: process.env.MINIMAX_API_KEY,
+    minimaxGroupId: process.env.MINIMAX_GROUP_ID,
+    maxResults: 5,
+  };
+}
 
-这些文章应该：
-1. 标题吸引人，符合自媒体风格
-2. 摘要简洁，突出核心观点
-3. 涵盖不同角度和观点
-
-请以JSON数组格式返回：
-[
-  {
-    "title": "文章标题",
-    "summary": "文章摘要（50-100字）"
-  }
-]`;
-
+async function searchRelatedArticles(keyword: string): Promise<RelatedArticle[]> {
   try {
-    const result = await callLLM(prompt);
-    const jsonMatch = result.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
+    const result = await unifiedSearch(keyword, getSearchConfig());
+    if (result.error) {
+      console.warn('[hot-topic-collect] 真实搜索不可用:', result.error);
       return [];
     }
-    const articles = JSON.parse(jsonMatch[0]);
-    return articles.map((a: any, index: number) => ({
-      title: a.title,
-      summary: a.summary,
-      url: `#article-${index + 1}`,
-    }));
+    return result.items
+      .filter(item => /^https?:\/\//.test(item.url))
+      .slice(0, 5)
+      .map(item => ({
+        title: item.title,
+        summary: item.description || item.content || '',
+        url: item.url,
+      }));
   } catch (error) {
-    console.error('Search articles error:', error);
+    console.error('Search related articles error:', error);
     return [];
   }
 }
 
 async function generateComprehensiveMaterials(
   topic: HotTopic,
-  articles: { title: string; summary: string; url: string }[]
+  articles: RelatedArticle[]
 ): Promise<MaterialData[]> {
   const articlesInfo = articles.map(a => `- ${a.title}: ${a.summary}`).join('\n');
 
@@ -179,10 +225,10 @@ ${articlesInfo}
     }
     const materials = JSON.parse(jsonMatch[0]);
     
-    return materials.map((m: any) => ({
+    return materials.map((m: any) => markAiGeneratedMaterial({
       type: 'hot_topic_material',
-      source: `热点采集-${topic.platform}`,
-      sourceUrl: undefined,
+      source: '',
+      sourceUrl: topic.url,
       title: m.title,
       content: m.content,
       keyPoints: m.keyPoints || [],
@@ -190,7 +236,7 @@ ${articlesInfo}
       dataPoints: m.dataPoints || [],
       tags: m.tags || [],
       topicId: topic.id,
-    }));
+    }, topic, articles));
   } catch (error) {
     console.error('Generate materials error:', error);
     return [];
@@ -223,16 +269,7 @@ export async function POST(request: NextRequest) {
 
       const database = db();
       const inserted = await database.insert(materialLibrary).values(
-        materials.map(m => ({
-          ...m,
-          keyPoints: m.keyPoints ? JSON.stringify(m.keyPoints) : null,
-          quotes: m.quotes ? JSON.stringify(m.quotes) : null,
-          dataPoints: m.dataPoints ? JSON.stringify(m.dataPoints) : null,
-          tags: m.tags ? JSON.stringify(m.tags) : null,
-          isUsed: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }))
+        materials.map(serializeMaterialForInsert)
       ).returning();
 
       return NextResponse.json({
@@ -261,16 +298,7 @@ export async function POST(request: NextRequest) {
           if (materials.length > 0) {
             const database = db();
             const inserted = await database.insert(materialLibrary).values(
-              materials.map(m => ({
-                ...m,
-                keyPoints: m.keyPoints ? JSON.stringify(m.keyPoints) : null,
-                quotes: m.quotes ? JSON.stringify(m.quotes) : null,
-                dataPoints: m.dataPoints ? JSON.stringify(m.dataPoints) : null,
-                tags: m.tags ? JSON.stringify(m.tags) : null,
-                isUsed: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }))
+              materials.map(serializeMaterialForInsert)
             ).returning();
 
             results.push({
@@ -299,12 +327,15 @@ export async function POST(request: NextRequest) {
 
       const successCount = results.filter(r => r.success).length;
       const totalMaterials = results.reduce((sum, r) => sum + (r.success ? (r.count || 0) : 0), 0);
+      const allFailed = topics.length > 0 && successCount === 0;
 
       return NextResponse.json({
-        success: true,
-        message: `成功采集 ${successCount}/${topics.length} 个热点，共 ${totalMaterials} 条素材`,
+        success: !allFailed,
+        message: allFailed
+          ? `批量素材采集未完成：${topics.length} 个热点全部失败`
+          : `成功采集 ${successCount}/${topics.length} 个热点，共 ${totalMaterials} 条素材`,
         results,
-      });
+      }, { status: allFailed ? 500 : 200 });
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
