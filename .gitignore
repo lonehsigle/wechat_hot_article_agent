@@ -63,6 +63,7 @@ public/wx_qrcode.png
 coverage/
 playwright-report/
 test-results/
+e2e/screenshots/
 
 # Debug
 .npm/

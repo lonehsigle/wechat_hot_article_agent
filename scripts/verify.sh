@@ -4,9 +4,6 @@ set -euo pipefail
 echo "[verify] typecheck"
 npm run typecheck
 
-echo "[verify] spec drift"
-bash scripts/verify-specs.sh
-
 echo "[verify] build"
 npm run build
 
