@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { shortcutManager, SHORTCUTS } from '@/lib/utils/shortcuts';
+import { SHORTCUTS } from '@/lib/utils/shortcuts';
 
 interface ShortcutHelpProps {
   isOpen: boolean;

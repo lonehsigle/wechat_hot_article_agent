@@ -6,7 +6,6 @@ import {
   painPointLevels,
   titleModels,
   TopicEvaluation,
-  analyzePainPoints,
   painPointKeywords,
 } from '@/lib/evaluation/service';
 

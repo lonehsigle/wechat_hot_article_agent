@@ -11,7 +11,7 @@ const turndownService = new TurndownService({
 
 turndownService.addRule('wechatImage', {
   filter: 'img',
-  replacement: (content, node) => {
+  replacement: (_content, node) => {
     const img = node as Element;
     const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
     const alt = img.getAttribute('alt') || '图片';

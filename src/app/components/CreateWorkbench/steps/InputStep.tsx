@@ -4,7 +4,6 @@ import React from 'react';
 import { styles } from '../styles';
 import type {
   InputSource,
-  WorkflowStep,
   CollectedArticle,
   LayoutStyle,
 } from '../types';

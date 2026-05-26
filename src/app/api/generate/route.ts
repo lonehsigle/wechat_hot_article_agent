@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { callLLM, streamLLM, generateWithTechniques, checkAIContent, removeAIFlavor, humanizeContent } from '@/lib/llm/service';
 import { getTechniquesForPrompt } from '@/lib/db/queries';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';

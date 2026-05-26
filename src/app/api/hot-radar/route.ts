@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hotTopics, hotTopicHistory, materialLibrary, collectedArticles, articleRewrites } from '@/lib/db/schema';
-import { eq, desc, and, gt, sql, inArray } from 'drizzle-orm';
-import { unifiedSearch, type SearchConfig, type SearchResponse } from '@/lib/search/service';
+import { hotTopics, hotTopicHistory, materialLibrary, collectedArticles } from '@/lib/db/schema';
+import { eq, desc, and, gt, sql } from 'drizzle-orm';
+import { unifiedSearch, type SearchConfig } from '@/lib/search/service';
 import { callLLM as sharedCallLLM, type LLMMessage } from '@/lib/llm/service';
 
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
@@ -80,7 +80,7 @@ async function analyzeTrend(topicId: number): Promise<TrendAnalysis | null> {
 }
 
 function generateRecommendation(
-  topic: typeof hotTopics.$inferSelect,
+  _topic: typeof hotTopics.$inferSelect,
   trend: string,
   growth: number,
   materialCount: number
@@ -97,7 +97,7 @@ function generateRecommendation(
 }
 
 async function getRecommendations(
-  userId?: string,
+  _userId?: string,
   limit: number = 10
 ): Promise<HotTopicRecommendation[]> {
   const recentTopics = await db().select()

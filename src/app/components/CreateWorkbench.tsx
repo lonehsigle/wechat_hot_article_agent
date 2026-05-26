@@ -708,7 +708,6 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           articleContent={s.articleContent}
           endingContent={s.endingContent}
           selectedTitle={s.selectedTitle}
-          generatedImages={s.generatedImages}
           isLoading={s.isLoading}
           onPolish={handlePolish}
           onGenerateImages={handleGenerateImages}

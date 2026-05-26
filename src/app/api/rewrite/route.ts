@@ -240,14 +240,6 @@ async function handleRewriteFromTopics(
 
 请根据提供的热点话题，创作一篇有深度的评论文章。`;
 
-  const topicsInfo = topics.map(t => ({
-    title: t.title,
-    platform: t.platform,
-    description: t.description,
-    hotValue: t.hotValue,
-    category: t.category,
-  }));
-
   const userPrompt = `请根据以下热点话题创作一篇文章：
 
 ${topics.map((t, i) => `

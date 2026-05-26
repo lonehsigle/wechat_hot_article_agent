@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import * as schema from './schema.pg';
 
 const databaseUrl = process.env.DATABASE_URL || 'postgresql://content_monitor:content_monitor_pass@localhost:5432/content_monitor_db';

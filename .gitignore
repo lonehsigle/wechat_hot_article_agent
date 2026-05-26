@@ -61,6 +61,8 @@ public/wx_qrcode.png
 
 # Test coverage
 coverage/
+playwright-report/
+test-results/
 
 # Debug
 .npm/

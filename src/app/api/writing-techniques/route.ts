@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getWritingTechniques, getWritingTechniqueById, createWritingTechnique, updateWritingTechnique, deleteWritingTechnique, getTechniqueCategories, createTechniqueCategory } from '@/lib/db/queries';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
 

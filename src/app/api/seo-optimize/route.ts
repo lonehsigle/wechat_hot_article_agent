@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { collectedArticles, articleRewrites } from '@/lib/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { collectedArticles } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { callLLM, type LLMMessage } from '@/lib/llm/service';
 
 interface SEOAnalysis {

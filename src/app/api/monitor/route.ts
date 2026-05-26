@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, wechatSubscriptions, collectedArticles, monitorLogs } from '@/lib/db/schema';
-import { eq, desc, and, gt, inArray } from 'drizzle-orm';
+import { eq, desc, and, gt } from 'drizzle-orm';
 import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;

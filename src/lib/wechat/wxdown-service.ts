@@ -20,7 +20,6 @@ const defaultConfig: WxdownConfig = {
 };
 
 let currentConfig: WxdownConfig = { ...defaultConfig };
-let wsConnection: WebSocket | null = null;
 let credentialsStore: Map<string, WxdownCredentials> = new Map();
 
 export function getWxdownConfig(): WxdownConfig {

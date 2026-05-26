@@ -21,10 +21,6 @@ interface PendingArticle {
   sourceArticleIds: number[];
 }
 
-interface PendingPublishPageProps {
-  onPreview?: (article: PendingArticle) => void;
-}
-
 const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '24px',
@@ -238,7 +234,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function PendingPublishPage({ onPreview }: PendingPublishPageProps) {
+export default function PendingPublishPage() {
   const [articles, setArticles] = useState<PendingArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<PendingArticle | null>(null);

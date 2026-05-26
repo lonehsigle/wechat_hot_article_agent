@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
   fetchDeepContent,
   batchFetchDeepContent,
   formatContentForMaterial,
-  DeepContent,
 } from '@/lib/crawler/service';
 import { db } from '@/lib/db';
 import { materialLibrary } from '@/lib/db/schema';

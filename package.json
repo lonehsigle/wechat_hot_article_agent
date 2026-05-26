@@ -13,37 +13,42 @@
     "typecheck": "tsc --noEmit",
     "verify": "bash scripts/verify.sh"
   },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
+    "postcss": "8.5.15"
+  },
   "dependencies": {
-    "@types/cheerio": "^0.22.35",
-    "@types/pg": "^8.20.0",
-    "@types/turndown": "^5.0.6",
     "cheerio": "^1.2.0",
     "docx": "^9.6.1",
-    "dompurify": "^3.3.3",
-    "drizzle-kit": "^0.31.10",
+    "dompurify": "^3.4.5",
     "drizzle-orm": "^0.45.2",
+    "jszip": "^3.10.1",
     "marked": "^17.0.5",
-    "next": "^15.0.0",
+    "next": "^15.5.18",
     "pg": "^8.20.0",
     "playwright": "^1.58.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "segmentit": "^2.0.3",
-    "turndown": "^7.2.2",
-    "xlsx": "^0.18.5"
+    "turndown": "^7.2.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
+    "@types/cheerio": "^0.22.35",
     "@types/dompurify": "^3.2.0",
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.5",
+    "drizzle-kit": "^0.31.10",
     "jsdom": "^29.0.2",
     "typescript": "^5.0.0",
     "vitest": "^4.1.5"

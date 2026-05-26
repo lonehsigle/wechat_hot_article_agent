@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (action === 'start-qrcode-auth') {
-    const { WechatAuthController, setAuthController, getAuthController, cleanQRCode, checkLock, setLock, releaseLock } = await import('@/lib/wechat-auth');
+    const { WechatAuthController, setAuthController, cleanQRCode, checkLock, setLock, releaseLock } = await import('@/lib/wechat-auth');
     
     // 先清理旧的锁和二维码文件
     releaseLock();
@@ -113,9 +113,9 @@ export async function GET(request: NextRequest) {
     
     try {
       await controller.startBrowser();
-      const qrcodeUrl = await controller.generateQRCode();
+      await controller.generateQRCode();
       
-      const authPromise = (async () => {
+      void (async () => {
         try {
           const loginSuccess = await controller.waitForLogin(60000);
           
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
 
   if (action === 'get-qrcode') {
     const token = randomBytes(32).toString('hex');
-    const [auth] = await db().insert(wechatAuth).values({
+      await db().insert(wechatAuth).values({
       token,
       status: 'pending',
     }).returning();
@@ -248,7 +248,6 @@ export async function GET(request: NextRequest) {
       const nicknameMatch = text.match(/var\s+nickname\s*=\s*['"]([^'"]+)['"]/);
       const titleMatch = text.match(/var\s+msg_title\s*=\s*['"]([^'"]+)['"]/);
       const descMatch = text.match(/var\s+msg_desc\s*=\s*['"]([^'"]+)['"]/);
-      const coverMatch = text.match(/var\s+msg_link\s*=\s*['"]([^'"]+)['"]/);
       
       if (bizMatch && nicknameMatch) {
         return NextResponse.json({
@@ -322,7 +321,7 @@ export async function POST(request: NextRequest) {
   try {
   if (action === 'init-auth') {
     const token = randomBytes(32).toString('hex');
-    const [auth] = await db().insert(wechatAuth).values({
+    await db().insert(wechatAuth).values({
       token,
       status: 'pending',
     }).returning();

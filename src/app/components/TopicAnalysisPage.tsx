@@ -53,7 +53,7 @@ function TopicAnalysisPage() {
     avgEngagementRate: 0,
   });
   const [wordCloud, setWordCloud] = useState<Array<{ word: string; count: number }>>([]);
-  const [cacheKey, setCacheKey] = useState<string>('');
+  const [, setCacheKey] = useState<string>('');
   const [publishTimeDistribution, setPublishTimeDistribution] = useState<Array<{ hour: number; count: number }>>([]);
 
   const calculatePublishTimeDistribution = (articleList: Array<{ publishTime: string | null }>) => {

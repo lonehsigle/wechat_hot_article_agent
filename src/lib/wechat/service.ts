@@ -944,7 +944,7 @@ function generateSectionHtml(
   section: { heading?: string; content: string },
   index: number,
   colors: { primary: string; secondary: string; gradient: string; shadow: string },
-  layoutStyle?: LayoutStyleConfig | null
+  _layoutStyle?: LayoutStyleConfig | null
 ): string {
   const iconColors = [colors.primary, colors.secondary, colors.primary, colors.secondary];
   const iconColor = iconColors[index % iconColors.length];

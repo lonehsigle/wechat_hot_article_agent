@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { materialLibrary, hotTopics } from '@/lib/db/schema';
+import { materialLibrary } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { unifiedSearch, type SearchConfig } from '@/lib/search/service';
 import { scoreMaterialSources } from '@/lib/verification/source-score';

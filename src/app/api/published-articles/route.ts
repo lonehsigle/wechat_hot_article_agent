@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getPublishedArticles, getPublishedArticleById, createPublishedArticle, updatePublishedArticle, getArticleStats, createArticleStats } from '@/lib/db/queries';
 import { initDatabase } from '@/lib/db';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';

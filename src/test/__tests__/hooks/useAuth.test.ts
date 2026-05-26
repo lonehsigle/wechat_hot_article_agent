@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { mockRouter } from '@/test/setup';
 
@@ -120,7 +120,9 @@ describe('useAuth', () => {
     });
 
     const newUser = { id: 2, username: 'new', email: 'new@example.com', displayName: 'New User', role: 'admin' };
-    result.current.setUser(newUser);
+    act(() => {
+      result.current.setUser(newUser);
+    });
 
     await waitFor(() => {
       expect(result.current.user).toEqual(newUser);

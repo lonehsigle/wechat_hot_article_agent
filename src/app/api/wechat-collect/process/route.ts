@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { wechatAuth, wechatSubscriptions, collectedArticles, collectTasks } from '@/lib/db/schema';
+import { wechatSubscriptions, collectTasks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {

@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       if (!body.content) {
         return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
       }
-      const result = await decomposeArticle(body.content, body.title);
+      const result = await decomposeArticle(body.content);
       return NextResponse.json(result);
     }
 
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
       if (!body.content) {
         return NextResponse.json({ success: false, error: 'content参数不能为空' }, { status: 400 });
       }
-      const result = await prePublishEvaluation(body.content, body.title);
+      const result = await prePublishEvaluation(body.content);
       return NextResponse.json(result);
     }
 
@@ -323,7 +323,7 @@ async function callWebSearch(keyword: string) {
   }
 }
 
-async function decomposeArticle(content: string, title?: string) {
+async function decomposeArticle(content: string) {
   const promptTemplate = await getPromptTemplate('decompose');
   const prompt = promptTemplate
     .replace('{content}', content);
@@ -987,7 +987,7 @@ ${params.title}` : ''}
   }
 }
 
-async function prePublishEvaluation(content: string, title?: string) {
+async function prePublishEvaluation(content: string) {
   const { detectAIPatterns, checkPublishReadiness, getHumanizationSuggestions } = await import('@/lib/ai-detection/service');
   
   const detectionResult = detectAIPatterns(content);
@@ -1048,8 +1048,6 @@ async function fullSOPWorkflow(params: {
   styleData?: Record<string, unknown> | null;
   layoutData?: Record<string, unknown> | null;
 }) {
-  const { detectAIPatterns, checkPublishReadiness } = await import('@/lib/ai-detection/service');
-  
   const result: {
     step: number;
     stepName: string;

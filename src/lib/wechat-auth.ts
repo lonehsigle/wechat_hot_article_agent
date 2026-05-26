@@ -19,8 +19,6 @@ export class WechatAuthController {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private isRunning = false;
-
   async startBrowser(): Promise<void> {
     this.browser = await chromium.launch({
       headless: true,

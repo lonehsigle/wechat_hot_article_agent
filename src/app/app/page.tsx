@@ -1,53 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import DOMPurify from 'dompurify';
+import React, { useState, useEffect } from 'react';
 import styles, { mobileStyles } from '../styles';
-
-const safeSanitizeHtml = (html: string): string => {
-  if (typeof window === 'undefined') return html;
-  try {
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'em', 'strong', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'img', 'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
-      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel'],
-    });
-  } catch {
-    return html;
-  }
-};
 
 import CreateWorkbench from '../components/CreateWorkbench';
 import PendingPublishPage from '../components/PendingPublishPage';
-import MarkdownEditor from '../components/MarkdownEditor';
 import OptimizationLoop from '../components/OptimizationLoop';
-import { htmlToMarkdown, markdownToHtml } from '@/lib/utils/html-markdown';
 import HotTopicsPage from '../page_hot_topics';
 import CrawlerPage from '../components/CrawlerPage';
 import WechatCollectPage from '../components/WechatCollectPage';
-import WritingTechniquesPage from '../components/WritingTechniquesPage';
 import DashboardPage from '../components/DashboardPage';
 import TopicAnalysisPage from '../components/TopicAnalysisPage';
-import StyleAnalyzerPage from '../components/StyleAnalyzerPage';
 import AnalyticsPanel from '../components/AnalyticsPanel';
-import PublishedArticlesPage from '../components/PublishedArticlesPage';
 
 import { useAuth } from '../hooks/useAuth';
 import { useWechatAccounts } from '../hooks/useWechatAccounts';
 import { useMenuSettings } from '../hooks/useMenuSettings';
-import { useMaterials } from '../hooks/useMaterials';
 import AddKeywordModal from '../components/modals/AddKeywordModal';
 import AddCreatorModal from '../components/modals/AddCreatorModal';
 import AccountModal from '../components/modals/AccountModal';
-
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  displayName: string;
-  avatar?: string;
-  role: string;
-}
 
 interface MonitorCategory {
   id: string;
@@ -101,27 +72,6 @@ interface SelectedTopic {
   selected: boolean;
 }
 
-interface SearchResult {
-  id: string;
-  url: string;
-  thumbnailUrl: string;
-  description: string;
-  photographer: string;
-  source: string;
-}
-
-interface ArticleDraft {
-  topicId: string;
-  title: string;
-  content: string;
-  coverImage: string;
-  images: string[];
-  status: 'draft' | 'generating' | 'writing' | 'humanizing' | 'images' | 'uploading' | 'done' | 'error';
-  progress: number;
-  selectedCover?: string;
-  searchResults?: SearchResult[];
-}
-
 interface WechatAccount {
   id: string;
   name: string;
@@ -148,30 +98,6 @@ interface LLMConfig {
   // 安全：新增字段
   apiKeyHint?: string | null;
   hasApiKey?: boolean;
-}
-
-interface PublishedArticle {
-  id: number;
-  title: string;
-  content: string;
-  coverImage: string;
-  wechatAccountId: number | null;
-  publishStatus: string;
-  publishTime: Date | null;
-  wechatArticleUrl: string | null;
-  createdAt: Date | null;
-}
-
-interface ArticleStat {
-  id: number;
-  articleId: number;
-  recordTime: Date;
-  readCount: number;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  readGrowth: number;
-  likeGrowth: number;
 }
 
 function TagList({
@@ -234,14 +160,9 @@ function TagList({
 }
 
 export default function AppPage() {
-  const router = useRouter();
-
   const { user, checkingAuth, handleLogout } = useAuth();
   const {
     wechatAccounts,
-    selectedAccountId,
-    setSelectedAccountId,
-    loading: accountLoading,
     loadWechatAccounts,
     addWechatAccount: createWechatAccount,
     saveWechatAccount,
@@ -256,14 +177,6 @@ export default function AppPage() {
     loadMenuSettings,
     saveMenuSettings: saveMenuSettingsApi,
   } = useMenuSettings();
-  const {
-    materials,
-    materialType,
-    setMaterialType,
-    loadMaterials,
-    deleteMaterial,
-  } = useMaterials();
-
   const [categories, setCategories] = useState<MonitorCategory[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [categoryContentsLoading, setCategoryContentsLoading] = useState(false);
@@ -276,7 +189,6 @@ export default function AppPage() {
   const [imageSources, setImageSources] = useState<ImageSourceConfig>({
     aiGenerated: true,
   });
-  const [articleStyle, setArticleStyle] = useState<string>('');
   const [writingStyles, setWritingStyles] = useState<Array<{
     id: number;
     name: string;
@@ -286,8 +198,7 @@ export default function AppPage() {
     template: string;
     exampleTitles: string[];
   }>>([]);
-  const [topics, setTopics] = useState<SelectedTopic[]>([]);
-  const [articleDrafts, setArticleDrafts] = useState<ArticleDraft[]>([]);
+  const [topics] = useState<SelectedTopic[]>([]);
   const [editingAccount, setEditingAccount] = useState<WechatAccount | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({
@@ -305,16 +216,7 @@ export default function AppPage() {
   const [categorySaving, setCategorySaving] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newPlatformName, setNewPlatformName] = useState('');
-  const [evaluationInput, setEvaluationInput] = useState('');
-  const [evaluating, setEvaluating] = useState(false);
-  const [evaluationResult, setEvaluationResult] = useState<{
-    title: string;
-    scores: { heat: number; novelty: number; competition: number; fit: number; total: number };
-    painPointLevel: string;
-    titleModel: string;
-    suggestions: string[];
-  } | null>(null);
-  const [benchmarkAccounts, setBenchmarkAccounts] = useState<Array<{
+  const [, setBenchmarkAccounts] = useState<Array<{
     id: number;
     platform: string;
     accountId: string;
@@ -323,18 +225,17 @@ export default function AppPage() {
     note?: string;
     isLowFollowerViral?: boolean;
   }>>([]);
-  const [selectedBenchmarkAccount, setSelectedBenchmarkAccount] = useState<{
+  const [selectedBenchmarkAccount] = useState<{
     id: number;
     accountName: string;
   } | null>(null);
-  const [viralTitles, setViralTitles] = useState<Array<{
+  const [, setViralTitles] = useState<Array<{
     id: number;
     title: string;
     readCount?: number;
     likeCount?: number;
   }>>([]);
   const [showAddBenchmark, setShowAddBenchmark] = useState(false);
-  const [showAddViralTitle, setShowAddViralTitle] = useState(false);
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [newBenchmark, setNewBenchmark] = useState({
     platform: '微信公众号',
@@ -345,18 +246,6 @@ export default function AppPage() {
     isLowFollowerViral: false,
   });
   const [batchTitles, setBatchTitles] = useState('');
-  const [showAddMaterial, setShowAddMaterial] = useState(false);
-  const [selectedMaterial, setSelectedMaterial] = useState<{
-    id: number;
-    type: string;
-    source: string;
-    title: string;
-    content: string;
-    keyPoints?: string[];
-  } | null>(null);
-
-
-
   const loadImageSources = async () => {
     try {
       const res = await fetch('/api/app-settings?key=imageSources');
@@ -394,23 +283,6 @@ export default function AppPage() {
     }
   };
 
-  const deleteWritingStyle = async (id: number) => {
-    if (!confirm('确定删除此写作风格？')) return;
-    try {
-      await fetch('/api/styles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', styleId: id }),
-      });
-      setWritingStyles(prev => prev.filter(s => s.id !== id));
-      if (articleStyle === String(id)) {
-        setArticleStyle('');
-      }
-    } catch (error) {
-      console.error('Delete style error:', error);
-    }
-  };
-
   const loadBenchmarkAccounts = async () => {
     try {
       const res = await fetch('/api/benchmark');
@@ -428,20 +300,6 @@ export default function AppPage() {
       setViralTitles(data.success ? (data.titles || []) : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('Failed to load viral titles:', error);
-    }
-  };
-
-  const deleteBenchmarkAccount = async (id: number) => {
-    if (!confirm('确定删除此对标账号？')) return;
-    try {
-      await fetch(`/api/benchmark?type=account&id=${id}`, { method: 'DELETE' });
-      setBenchmarkAccounts(prev => prev.filter(a => a.id !== id));
-      if (selectedBenchmarkAccount?.id === id) {
-        setSelectedBenchmarkAccount(null);
-        setViralTitles([]);
-      }
-    } catch (error) {
-      console.error('Failed to delete benchmark account:', error);
     }
   };
 
@@ -757,32 +615,12 @@ export default function AppPage() {
     await updateCategoryLists(selectedCategory.id, { [field]: nextValues });
   };
 
-  const handleEvaluate = async () => {
-    if (!evaluationInput.trim()) return;
-    setEvaluating(true);
-    try {
-      const res = await fetch('/api/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'evaluate',
-          title: evaluationInput,
-        }),
-      });
-      const data = await res.json();
-      setEvaluationResult(data);
-    } catch (error) {
-      console.error('Evaluation failed:', error);
-    } finally {
-      setEvaluating(false);
-    }
-  };
-
   useEffect(() => {
     loadWechatAccounts();
     loadLLMConfig();
     loadMenuSettings();
     loadImageSources();
+    loadWritingStyles();
     loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -819,91 +657,12 @@ export default function AppPage() {
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
   const allDates = [...new Set(selectedCategory?.contents.map(c => c.date) || [])].sort().reverse();
-  const selectedReport = selectedCategory?.reports.find(r => r.date === selectedDate) || selectedCategory?.reports[0];
 
   const filteredContents = selectedCategory?.contents.filter(c => {
     if (selectedPlatform && c.platform !== selectedPlatform) return false;
     if (selectedDate && c.date !== selectedDate) return false;
     return true;
   }) || [];
-
-  const selectedTopics = topics.filter(t => t.selected);
-  const selectedReportTopics = selectedReport?.topics || [];
-  const selectedAccount = wechatAccounts.find(a => a.id === selectedAccountId);
-
-  const toggleTopicSelection = (topicId: string) => {
-    setTopics(prev => prev.map(t =>
-      t.id === topicId ? { ...t, selected: !t.selected } : t
-    ));
-  };
-
-  const selectAllTopics = () => {
-    setTopics(prev => prev.map(t => ({ ...t, selected: true })));
-  };
-
-  const deselectAllTopics = () => {
-    setTopics(prev => prev.map(t => ({ ...t, selected: false })));
-  };
-
-  const generateArticles = async () => {
-    if (!llmConfig.hasApiKey) {
-      alert('请先在设置中配置 LLM API Key');
-      return;
-    }
-
-    const newDrafts: ArticleDraft[] = selectedTopics.map(topic => ({
-      topicId: topic.id,
-      title: topic.title,
-      content: '',
-      coverImage: '',
-      images: [],
-      status: 'generating' as const,
-      progress: 0,
-    }));
-    setArticleDrafts(newDrafts);
-
-    for (let i = 0; i < selectedTopics.length; i++) {
-      const topic = selectedTopics[i];
-
-      setArticleDrafts(prev => prev.map(d => 
-        d.topicId === topic.id ? { ...d, status: 'generating', progress: 10 } : d
-      ));
-
-      try {
-        const res = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'generate-article',
-            title: topic.title,
-            style: articleStyle,
-            keywords: [],
-            length: 1500,
-          }),
-        });
-
-        if (!res.ok) {
-          throw new Error('生成失败');
-        }
-
-        const data = await res.json();
-
-        setArticleDrafts(prev => prev.map(d => 
-          d.topicId === topic.id ? { 
-            ...d, 
-            content: data.content,
-            status: 'done',
-            progress: 100 
-          } : d
-        ));
-      } catch (error) {
-        console.error('Failed to generate article:', error);
-        setArticleDrafts(prev => prev.map(d => 
-          d.topicId === topic.id ? { ...d, status: 'draft', progress: 0 } : d
-        ));
-      }
-    }
-  };
 
   const addWechatAccount = () => {
     const newAccount = createWechatAccount();
@@ -926,34 +685,6 @@ export default function AppPage() {
   const handleDeleteAccount = async (id: string) => {
     if (!confirm('确定删除此公众号账号？')) return;
     await deleteWechatAccount(id);
-  };
-
-  const getStatusText = (status: ArticleDraft['status'], progress: number) => {
-    switch (status) {
-      case 'draft': return '待生成';
-      case 'generating': return `AI生成中... ${progress}%`;
-      case 'writing': return `撰写文章中... ${progress}%`;
-      case 'humanizing': return `AI去味优化中... ${progress}%`;
-      case 'images': return `搜索配图中... ${progress}%`;
-      case 'uploading': return `上传到微信... ${progress}%`;
-      case 'done': return '已完成';
-      case 'error': return '生成失败';
-      default: return '未知状态';
-    }
-  };
-
-  const getStatusColor = (status: ArticleDraft['status']) => {
-    switch (status) {
-      case 'draft': return '#64748b';
-      case 'generating': return '#3b82f6';
-      case 'writing': return '#3b82f6';
-      case 'humanizing': return '#8b5cf6';
-      case 'images': return '#f59e0b';
-      case 'uploading': return '#06b6d4';
-      case 'done': return '#10b981';
-      case 'error': return '#ef4444';
-      default: return '#64748b';
-    }
   };
 
 
@@ -2167,7 +1898,6 @@ export default function AppPage() {
             llmConfig={llmConfig}
             topics={topics}
             writingStyles={writingStyles}
-            onArticleCreated={(article) => {}}
           />
         )}
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { wechatSubscriptions, wechatSessions, collectedArticles } from '@/lib/db/schema';
+import { wechatSubscriptions, wechatSessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { USER_AGENT } from '@/lib/wechat/proxy-request';
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     switch (action) {
       case 'list':
-        return await listSubscriptions(request);
+        return await listSubscriptions();
       case 'delete':
         return await deleteSubscription(request);
       case 'fetch':
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function listSubscriptions(request: NextRequest) {
+async function listSubscriptions() {
   const subscriptions = await db()
     .select()
     .from(wechatSubscriptions)

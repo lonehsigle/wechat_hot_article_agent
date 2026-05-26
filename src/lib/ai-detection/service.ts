@@ -338,7 +338,6 @@ export function detectAIPatterns(content: string): AICheckResult {
 
   const highSeverityCount = detectedPatterns.filter(d => d.pattern.severity === 'high').length;
   const mediumSeverityCount = detectedPatterns.filter(d => d.pattern.severity === 'medium').length;
-  const lowSeverityCount = detectedPatterns.filter(d => d.pattern.severity === 'low').length;
 
   const highSeverityMatches = detectedPatterns
     .filter(d => d.pattern.severity === 'high')
@@ -400,8 +399,6 @@ function calculateQualityScore(
   detectedPatterns: Array<{ pattern: AIPattern; matches: string[]; count: number }>
 ): QualityScore {
   const sentences = content.split(/[。！？.!?]+/).filter(s => s.trim().length > 0);
-  const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0);
-
   let directness = 10;
   let rhythm = 10;
   let trust = 10;

@@ -5,7 +5,7 @@ import { initDatabase, db } from '@/lib/db';
 import { wordCloudCache } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'crypto';
-import { getPromptTemplate as getDbPromptTemplate, getPromptTemplateSync } from '@/lib/prompts';
+import { getPromptTemplate as getDbPromptTemplate } from '@/lib/prompts';
 
 function generateArticleHash(articles: ArticleForAnalysis[]): string {
   const content = articles.map(a => `${a.title}:${a.readCount}:${a.likeCount}`).join('|');

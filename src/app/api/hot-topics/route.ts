@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hotTopics, hotTopicHistory, collectedArticles, articleRewrites } from '@/lib/db/schema';
-import { eq, desc, and, gt, inArray, or, like, sql } from 'drizzle-orm';
+import { eq, desc, and, gt, inArray, like } from 'drizzle-orm';
 import { apiResponse } from '@/lib/utils/api-helper';
 import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
 

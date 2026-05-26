@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 // ============ Types ============
 
@@ -136,7 +136,7 @@ export function useCreateWorkbenchState() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState('');
   const [contentAnalysis, setContentAnalysis] = useState<ContentAnalysis | null>(null);
-  const [analyzingContent, setAnalyzingContent] = useState(false);
+  const [analyzingContent] = useState(false);
   
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishProgress, setPublishProgress] = useState<string[]>([]);

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { platformPosts, postComments, creators, commentWordCloud, crawlTasks } from '@/lib/db/schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
-
-const PLATFORMS = ['xiaohongshu', 'douyin', 'kuaishou', 'bilibili', 'weibo', 'tieba', 'zhihu'] as const;
 
 export async function GET(request: NextRequest) {
   try {

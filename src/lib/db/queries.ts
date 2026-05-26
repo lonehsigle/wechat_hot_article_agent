@@ -169,7 +169,6 @@ export async function deleteWechatAccount(id: number) {
 }
 
 export async function setDefaultWechatAccount(id: number) {
-  const database = db();
   const pool = getPool();
   const client = await pool.connect();
   try {

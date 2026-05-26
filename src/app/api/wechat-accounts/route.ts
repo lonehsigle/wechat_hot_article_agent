@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getWechatAccounts, getWechatAccountById, getDefaultWechatAccount, createWechatAccount, updateWechatAccount, deleteWechatAccount, setDefaultWechatAccount } from '@/lib/db/queries';
 import { initDatabase } from '@/lib/db';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';

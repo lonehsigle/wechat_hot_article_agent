@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { wechatSessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { proxyMpRequest, extractTokenFromRedirectUrl, USER_AGENT } from '@/lib/wechat/proxy-request';
+import { extractTokenFromRedirectUrl, USER_AGENT } from '@/lib/wechat/proxy-request';
 
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 
 const safeSanitizeHtml = (html: string): string => {
@@ -48,8 +48,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
   const [markdownContent, setMarkdownContent] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSubscriptionUrl, setNewSubscriptionUrl] = useState('');
-  const [collecting, setCollecting] = useState(false);
-  const [selectedSubscription, setSelectedSubscription] = useState<number | null>(null);
   const [parsingUrl, setParsingUrl] = useState(false);
   const [parsedInfo, setParsedInfo] = useState<{biz: string; nickname: string; articleTitle: string} | null>(null);
   
@@ -73,7 +71,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
   const [wechatAuthKey, setWechatAuthKey] = useState<string | null>(null);
   const [wechatLoggedIn, setWechatLoggedIn] = useState(false);
   const [wechatQrCode, setWechatQrCode] = useState<string | null>(null);
-  const [wechatUuid, setWechatUuid] = useState<string | null>(null);
   const [wechatScanStatus, setWechatScanStatus] = useState<'waiting' | 'scanned' | 'confirmed' | 'expired' | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{
@@ -103,22 +100,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [articlesPage, setArticlesPage] = useState(0);
   const [articlesTotal, setArticlesTotal] = useState(0);
-  const [drafts, setDrafts] = useState<Array<{
-    id: number;
-    mediaId: string;
-    title: string;
-    author: string | null;
-    digest: string | null;
-    coverImage: string | null;
-    status: string;
-    createTime: string | null;
-    updateTime: string | null;
-    note: string | null;
-  }>>([]);
-  const [draftStats, setDraftStats] = useState<{total: number; published: number; draft: number}>({total: 0, published: 0, draft: 0});
-  const [selectedDrafts, setSelectedDrafts] = useState<Set<number>>(new Set());
-  const [syncingDrafts, setSyncingDrafts] = useState(false);
-  const [deletingDrafts, setDeletingDrafts] = useState(false);
   const [showCookieModal, setShowCookieModal] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
@@ -614,26 +595,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
     }
   };
 
-  const loadDrafts = async () => {
-    try {
-      const res = await fetch('/api/wechat-drafts?action=list');
-      const data = await res.json();
-      setDrafts(data.drafts || []);
-    } catch (error) {
-      console.error('Failed to load drafts:', error);
-    }
-  };
-
-  const loadDraftStats = async () => {
-    try {
-      const res = await fetch('/api/wechat-drafts?action=stats');
-      const data = await res.json();
-      setDraftStats(data);
-    } catch (error) {
-      console.error('Failed to load draft stats:', error);
-    }
-  };
-
   const checkWechatLogin = async () => {
     if (!wechatAuthKey) return;
     try {
@@ -651,7 +612,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       const data = await res.json();
       if (data.success) {
         setWechatQrCode(data.qrcode);
-        setWechatUuid(data.uuid);
         setWechatScanStatus('waiting');
         pollScanStatus(data.uuid, data.setCookie);
       }
@@ -747,159 +707,11 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
   useEffect(() => {
     checkAuth();
     loadSubscriptions();
-    loadDrafts();
-    loadDraftStats();
     loadWxdownConfig();
     if (wechatAuthKey) {
       checkWechatLogin();
     }
   }, []);
-
-  useEffect(() => {
-    if (selectedSubscription) {
-      loadArticles(selectedSubscription);
-    } else {
-      loadArticles();
-    }
-  }, [selectedSubscription]);
-
-  const syncDrafts = async () => {
-    setSyncingDrafts(true);
-    try {
-      const res = await fetch('/api/wechat-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`同步完成，共获取 ${data.count} 篇草稿`);
-        loadDrafts();
-        loadDraftStats();
-      } else {
-        alert('同步失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to sync drafts:', error);
-      alert('同步失败');
-    } finally {
-      setSyncingDrafts(false);
-    }
-  };
-
-  const deleteSelectedDrafts = async () => {
-    if (selectedDrafts.size === 0) {
-      alert('请先选择要删除的草稿');
-      return;
-    }
-    if (!confirm(`确定要删除选中的 ${selectedDrafts.size} 篇草稿吗？`)) return;
-    
-    setDeletingDrafts(true);
-    try {
-      const res = await fetch('/api/wechat-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'batch-delete', 
-          ids: Array.from(selectedDrafts) 
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`成功删除 ${data.deletedCount} 篇草稿`);
-        setSelectedDrafts(new Set());
-        loadDrafts();
-        loadDraftStats();
-      } else {
-        alert('删除失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to delete drafts:', error);
-      alert('删除失败');
-    } finally {
-      setDeletingDrafts(false);
-    }
-  };
-
-  const clearPublishedDrafts = async () => {
-    if (draftStats.published === 0) {
-      alert('没有已发布的草稿需要清理');
-      return;
-    }
-    if (!confirm(`确定要清空所有已发布的草稿（共 ${draftStats.published} 篇）吗？`)) return;
-    
-    setDeletingDrafts(true);
-    try {
-      const res = await fetch('/api/wechat-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear-published' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`成功清理 ${data.deletedCount} 篇已发布草稿`);
-        loadDrafts();
-        loadDraftStats();
-      } else {
-        alert('清理失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to clear published drafts:', error);
-      alert('清理失败');
-    } finally {
-      setDeletingDrafts(false);
-    }
-  };
-
-  const clearAllDrafts = async () => {
-    if (draftStats.total === 0) {
-      alert('草稿箱为空');
-      return;
-    }
-    if (!confirm(`确定要清空所有草稿（共 ${draftStats.total} 篇）吗？此操作不可恢复！`)) return;
-    if (!confirm('再次确认：这将删除所有草稿，是否继续？')) return;
-    
-    setDeletingDrafts(true);
-    try {
-      const res = await fetch('/api/wechat-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear-all' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`成功清空 ${data.deletedCount} 篇草稿`);
-        setSelectedDrafts(new Set());
-        loadDrafts();
-        loadDraftStats();
-      } else {
-        alert('清空失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to clear all drafts:', error);
-      alert('清空失败');
-    } finally {
-      setDeletingDrafts(false);
-    }
-  };
-
-  const toggleDraftSelection = (id: number) => {
-    const newSelected = new Set(selectedDrafts);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedDrafts(newSelected);
-  };
-
-  const toggleAllDrafts = () => {
-    if (selectedDrafts.size === drafts.length) {
-      setSelectedDrafts(new Set());
-    } else {
-      setSelectedDrafts(new Set(drafts.map(d => d.id)));
-    }
-  };
 
   const startAuth = async () => {
     setAuthMode('qrcode');
@@ -975,23 +787,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
     };
     
     poll();
-  };
-
-  const refreshQRCode = async () => {
-    setQrCodeUrl(null);
-    try {
-      const res = await fetch('/api/wechat-collect?action=start-qrcode-auth');
-      const data = await res.json();
-      
-      if (data.success) {
-        setQrCodeUrl(data.qrcodeUrl);
-      } else {
-        alert('刷新二维码失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to refresh QR code:', error);
-      alert('刷新二维码失败');
-    }
   };
 
   const submitCookie = async () => {
@@ -1084,40 +879,6 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
     } catch (error) {
       console.error('Failed to add subscription:', error);
       alert('添加失败，请重试');
-    }
-  };
-
-  const startCollect = async (subscriptionId: number) => {
-    if (!authorized) {
-      alert('请先完成微信授权');
-      return;
-    }
-    
-    setCollecting(true);
-    try {
-      const res = await fetch('/api/wechat-collect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'start-collect',
-          subscriptionId,
-          type: 'incremental',
-          count: 5,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(`采集完成，共采集 ${data.collected} 篇文章`);
-        loadSubscriptions();
-        loadArticles(subscriptionId);
-      } else {
-        alert('采集失败：' + (data.error || '未知错误'));
-      }
-    } catch (error) {
-      console.error('Failed to start collect:', error);
-      alert('采集失败');
-    } finally {
-      setCollecting(false);
     }
   };
 

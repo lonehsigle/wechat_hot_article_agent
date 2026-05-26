@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { styles } from '../styles';
-import type { AICheckResult, GeneratedImage } from '../types';
+import type { AICheckResult } from '../types';
 
 interface PolishStepProps {
   aiCheckResult: AICheckResult | null;
@@ -12,7 +12,6 @@ interface PolishStepProps {
   articleContent: string;
   endingContent: string;
   selectedTitle: string;
-  generatedImages: GeneratedImage[];
   isLoading: boolean;
   onPolish: () => void;
   onGenerateImages: () => void;
@@ -27,7 +26,6 @@ export function PolishStep({
   articleContent,
   endingContent,
   selectedTitle,
-  generatedImages,
   isLoading,
   onPolish,
   onGenerateImages,
