@@ -26,6 +26,9 @@ const mockDb = new Proxy({} as any, {
 vi.mock('@/lib/db', () => ({
   db: () => mockDb,
 }));
+const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), {
+  headers: { 'Content-Type': 'application/json' },
+});
 
 describe('wechat datacube sync', () => {
   beforeEach(() => {
@@ -56,24 +59,18 @@ describe('wechat datacube sync', () => {
       { id: 1, appId: 'appid', appSecret: 'secret', accessToken: 'token', tokenExpiresAt: new Date(Date.now() + 3600_000) },
     ]);
     vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        json: async () => ({
-          list: [
-            {
-              msgid: 'msg-1',
-              int_page_read_count: 10,
-              share_count: 2,
-              add_to_fav_count: 1,
-            },
-          ],
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ list: [] }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ list: [] }),
-      } as Response);
+      .mockResolvedValueOnce(jsonResponse({
+        list: [
+          {
+            msgid: 'msg-1',
+            int_page_read_count: 10,
+            share_count: 2,
+            add_to_fav_count: 1,
+          },
+        ],
+      }))
+      .mockResolvedValueOnce(jsonResponse({ list: [] }))
+      .mockResolvedValueOnce(jsonResponse({ list: [] }));
 
     const { syncDatacubeDailyStats } = await import('@/lib/wechat/service');
     const result = await syncDatacubeDailyStats({ date: '2026-05-09', force: true });

@@ -114,7 +114,7 @@ describe('/api/styles', () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.analysis).toBeDefined();
+      expect(data.data).toBeDefined();
     });
 
     it('should return 400 when analyze missing articles', async () => {
@@ -151,7 +151,7 @@ describe('/api/styles', () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.style.id).toBe(1);
+      expect(data.data.id).toBe(1);
     });
 
     it('should return 400 when save missing params', async () => {
@@ -362,7 +362,7 @@ describe('/api/styles', () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.analysis.titleStrategy).toContain('解析失败');
+      expect(data.data.titleStrategy).toContain('解析失败');
     });
 
     it('should handle LLM errors in analysis', async () => {

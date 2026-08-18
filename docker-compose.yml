@@ -1,6 +1,16 @@
-version: '3.8'
-
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    environment:
+      - DATABASE_URL=postgresql://content_monitor:${PG_PASSWORD:?PG_PASSWORD is required}@postgres:5432/content_monitor_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   content-monitor:
     build:
       context: .
@@ -9,19 +19,21 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://content_monitor:${PG_PASSWORD:-content_monitor_pass}@postgres:5432/content_monitor_db
-      # 重要：生产环境必须设置以下变量
-      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-}
+      - DATABASE_URL=postgresql://content_monitor:${PG_PASSWORD:?PG_PASSWORD is required}@postgres:5432/content_monitor_db
+      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:?DB_ENCRYPTION_KEY is required}
+      - PASSWORD_HASH_SALT=${PASSWORD_HASH_SALT:?PASSWORD_HASH_SALT is required}
+      - AUTH_COOKIE_SECRET=${AUTH_COOKIE_SECRET:?AUTH_COOKIE_SECRET is required}
+      - INTERNAL_WORKER_TOKEN=${INTERNAL_WORKER_TOKEN:-}
       - WECHAT_APPID=${WECHAT_APPID:-}
       - WECHAT_SECRET=${WECHAT_SECRET:-}
       - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -38,7 +50,7 @@ services:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=content_monitor
-      - POSTGRES_PASSWORD=${PG_PASSWORD:-content_monitor_pass}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:?PG_PASSWORD is required}
       - POSTGRES_DB=content_monitor_db
     volumes:
       - postgres-data:/var/lib/postgresql/data

@@ -1,17 +1,11 @@
-export function safeSanitizeHtml(html: string): string {
-  if (!html) return '';
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '');
-}
+import DOMPurify from 'dompurify';
 
-export function safeSanitize(html: string): string {
-  if (!html) return '';
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '');
+export function sanitizeHtml(html: string): string {
+  if (!html || typeof window === 'undefined') return '';
+  try {
+    return DOMPurify.sanitize(html);
+  } catch (error) {
+    console.error('HTML sanitization failed:', error);
+    return '';
+  }
 }

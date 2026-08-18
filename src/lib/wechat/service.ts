@@ -1,6 +1,8 @@
 import { db } from '../db';
 import { wechatAccounts, publishedArticles, articleStats, articleStatsDaily } from '../db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
+import { assertSafeRemoteUrlResolved } from '../safe-remote-url';
+import { fetchWithTimeout, readJsonResponse, readResponseBytes } from '../http/fetch';
 
 interface WechatAccountConfig {
   id: number;
@@ -47,8 +49,8 @@ export async function getAccessToken(accountId: number): Promise<string> {
 
   const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${account.appId}&secret=${account.appSecret}`;
 
-  const response = await fetch(url);
-  const data = await response.json();
+  const response = await fetchWithTimeout(url);
+  const data = await readJsonResponse(response);
 
   if (data.errcode) {
     throw new Error(`获取access_token失败: ${data.errmsg} (${data.errcode})`);
@@ -170,12 +172,12 @@ export async function uploadImage(
     url = `https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token=${accessToken}`;
   }
   
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     body: formData,
   });
   
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   
   if (data.errcode) {
     throw new Error(`上传图片失败: ${data.errmsg} (${data.errcode})`);
@@ -201,19 +203,23 @@ export async function uploadImageFromUrl(
     if (!matches) {
       throw new Error('无效的 base64 图片格式');
     }
+    if (matches[2].length > 14 * 1024 * 1024) {
+      throw new Error('图片内容超过 10 MB 限制');
+    }
     // 从 data URI 中提取实际MIME类型
     detectedMime = matches[1];
     const ext = mimeToExt(detectedMime);
     buffer = Buffer.from(matches[2], 'base64');
     filename = `image.${ext}`;
   } else {
-    const response = await fetch(imageUrl);
+    const url = await assertSafeRemoteUrlResolved(imageUrl);
+    const response = await fetchWithTimeout(url, { redirect: 'error' });
     if (!response.ok) {
       throw new Error(`下载图片失败: ${response.status}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    buffer = Buffer.from(arrayBuffer);
+    const bytes = await readResponseBytes(response, 10 * 1024 * 1024);
+    buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
     // 优先从响应的 Content-Type 获取MIME类型
     const contentType = response.headers.get('content-type');
@@ -221,8 +227,7 @@ export async function uploadImageFromUrl(
       detectedMime = contentType.split(';')[0].trim();
     }
 
-    const urlObj = new URL(imageUrl);
-    filename = urlObj.pathname.split('/').pop() || 'image.jpg';
+    filename = url.pathname.split('/').pop() || 'image.jpg';
   }
 
   return uploadImage(accountId, buffer, filename, type, detectedMime);
@@ -289,7 +294,7 @@ export async function createDraft(
 
   const url = `https://api.weixin.qq.com/cgi-bin/draft/add?access_token=${accessToken}`;
   
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -299,7 +304,7 @@ export async function createDraft(
     }),
   });
   
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   
   if (data.errcode) {
     throw new Error(`创建草稿失败: ${data.errmsg} (${data.errcode})`);
@@ -318,7 +323,7 @@ export async function listWechatDrafts(
   const url = `https://api.weixin.qq.com/cgi-bin/draft/batchget?access_token=${accessToken}`;
   const count = Math.min(Math.max(options?.count ?? 20, 1), 20);
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -330,7 +335,7 @@ export async function listWechatDrafts(
     }),
   });
 
-  const data = await response.json();
+  const data = await readJsonResponse(response);
 
   if (data.errcode) {
     throw new Error(`获取草稿列表失败: ${data.errmsg} (${data.errcode})`);
@@ -370,7 +375,7 @@ export async function publishDraft(
   
   const url = `https://api.weixin.qq.com/cgi-bin/freepublish/submit?access_token=${accessToken}`;
   
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -380,7 +385,7 @@ export async function publishDraft(
     }),
   });
   
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   
   if (data.errcode) {
     throw new Error(`发布失败: ${data.errmsg} (${data.errcode})`);
@@ -420,12 +425,12 @@ export function toLocalPublishStatus(status: string): string {
 
 export async function getPublishStatus(accountId: number, publishId: string): Promise<PublishStatusResult> {
   const accessToken = await getAccessToken(accountId);
-  const response = await fetch(`https://api.weixin.qq.com/cgi-bin/freepublish/get?access_token=${accessToken}`, {
+  const response = await fetchWithTimeout(`https://api.weixin.qq.com/cgi-bin/freepublish/get?access_token=${accessToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ publish_id: publishId }),
   });
-  const data = await response.json();
+  const data = await readJsonResponse(response);
 
   if (data.errcode) {
     throw new Error(`查询发布状态失败: ${data.errmsg} (${data.errcode})`);
@@ -455,7 +460,7 @@ export async function listPublishedArticlesFromWechat(
 ) {
   const accessToken = await getAccessToken(accountId);
   const count = Math.min(Math.max(options?.count ?? 20, 1), 20);
-  const response = await fetch(`https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token=${accessToken}`, {
+  const response = await fetchWithTimeout(`https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token=${accessToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -464,7 +469,7 @@ export async function listPublishedArticlesFromWechat(
       no_content: options?.noContent ? 1 : 0,
     }),
   });
-  const data = await response.json();
+  const data = await readJsonResponse(response);
 
   if (data.errcode) {
     throw new Error(`获取已发布列表失败: ${data.errmsg} (${data.errcode})`);
@@ -543,7 +548,7 @@ export async function getArticleStats(
   
   const url = `https://api.weixin.qq.com/cgi-bin/freepublish/getarticle?access_token=${accessToken}`;
   
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -553,7 +558,7 @@ export async function getArticleStats(
     }),
   });
   
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   
   if (data.errcode) {
     throw new Error(`获取文章数据失败: ${data.errmsg} (${data.errcode})`);
@@ -571,12 +576,12 @@ export async function getArticleStats(
 
 async function callDatacube(accountId: number, endpoint: string, beginDate: string, endDate: string) {
   const accessToken = await getAccessToken(accountId);
-  const response = await fetch(`https://api.weixin.qq.com/datacube/${endpoint}?access_token=${accessToken}`, {
+  const response = await fetchWithTimeout(`https://api.weixin.qq.com/datacube/${endpoint}?access_token=${accessToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ begin_date: beginDate, end_date: endDate }),
   });
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   if (data.errcode) {
     throw new Error(`datacube ${endpoint} 失败: ${data.errmsg} (${data.errcode})`);
   }

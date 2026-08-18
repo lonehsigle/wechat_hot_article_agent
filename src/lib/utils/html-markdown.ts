@@ -1,5 +1,6 @@
 import TurndownService from 'turndown';
 import { marked } from 'marked';
+import { load } from 'cheerio/slim';
 
 const turndownService = new TurndownService({
   headingStyle: 'atx',
@@ -56,9 +57,7 @@ turndownService.addRule('wechatBlockquote', {
 export function htmlToMarkdown(html: string): string {
   if (!html) return '';
   
-  let cleanHtml = html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+  let cleanHtml = cleanWechatHtml(html)
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/data-tools="[^"]*"/g, '')
     .replace(/class="[^"]*"/g, '')
@@ -103,7 +102,7 @@ export function markdownToHtml(markdown: string): string {
       breaks: true,
     }) as string;
     
-    return html;
+    return cleanWechatHtml(html);
   } catch (error) {
     console.error('Markdown to HTML conversion error:', error);
     return markdown;
@@ -112,15 +111,38 @@ export function markdownToHtml(markdown: string): string {
 
 export function cleanWechatHtml(html: string): string {
   if (!html) return '';
-  
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/data-tools="[^"]*"/g, '')
-    .replace(/onclick="[^"]*"/g, '')
-    .replace(/onerror="[^"]*"/g, '')
-    .replace(/onload="[^"]*"/g, '');
+
+  const $ = load(html, null, false);
+  $('script, style, iframe, object, embed, form, input, button, textarea, select, option, link, meta, base').remove();
+  const safeDataImage = /^data:image\/(?:png|jpe?g|gif|webp|avif);base64,/i;
+  const urlAttributes: Record<string, true> = {
+    href: true,
+    src: true,
+    'data-src': true,
+    'xlink:href': true,
+    action: true,
+    formaction: true,
+    poster: true,
+  };
+
+  $('*').each((_index, element) => {
+    for (const [name, value] of Object.entries($(element).attr() || {})) {
+      const normalizedName = name.toLowerCase();
+      if (normalizedName.startsWith('on') || normalizedName === 'srcdoc') {
+        $(element).removeAttr(name);
+        continue;
+      }
+      if (!urlAttributes[normalizedName]) continue;
+
+      const normalizedValue = value.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+      const unsafeProtocol = normalizedValue.startsWith('javascript:') || normalizedValue.startsWith('vbscript:');
+      const unsafeData = normalizedValue.startsWith('data:') &&
+        !((normalizedName === 'src' || normalizedName === 'data-src') && safeDataImage.test(value));
+      if (unsafeProtocol || unsafeData) $(element).removeAttr(name);
+    }
+  });
+
+  return $.html();
 }
 
 export function extractImagesFromHtml(html: string): Array<{ src: string; alt: string }> {

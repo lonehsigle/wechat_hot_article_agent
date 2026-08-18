@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { writingStyles, layoutStyles } from '@/lib/db/schema';
 import { desc, eq } from 'drizzle-orm';
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    return errorResponse('Invalid JSON body', 400);
   }
   const { action, articles, styleName, styleId } = body as {
     action: string; articles?: { title: string; content: string }[]; styleName?: string; styleId?: number;
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
   if (action === 'analyze') {
     if (!articles || !Array.isArray(articles) || articles.length === 0) {
-      return NextResponse.json({ success: false, error: '请提供至少一篇文章进行分析' }, { status: 400 });
+      return errorResponse('请提供至少一篇文章进行分析', 400);
     }
 
     const analysisPrompt = `你是一个顶级的公众号爆款文案专家和SOP拆解教练。
@@ -113,20 +113,17 @@ ${a.content}
         };
       }
 
-      return NextResponse.json({
-        success: true,
-        analysis,
-      });
+      return successResponse(analysis);
     } catch (error) {
       console.error('Style analysis error:', error);
-      return NextResponse.json({ success: false, error: '风格分析失败' }, { status: 500 });
+      return errorResponse('风格分析失败');
     }
   }
 
   if (action === 'save') {
     const { name, analysis } = body as { name?: string; analysis?: StyleAnalysis };
     if (!name || !analysis) {
-      return NextResponse.json({ success: false, error: '缺少风格名称或分析结果' }, { status: 400 });
+      return errorResponse('缺少风格名称或分析结果', 400);
     }
 
     try {
@@ -145,25 +142,25 @@ ${a.content}
       exampleTitles: analysis.exampleTitles ? JSON.stringify(analysis.exampleTitles) : null,
     }).returning();
 
-    return NextResponse.json({ success: true, style: saved });
+    return successResponse(saved);
     } catch (error) {
       console.error('Style save error:', error);
-      return NextResponse.json({ success: false, error: '保存风格失败' }, { status: 500 });
+      return errorResponse('保存风格失败');
     }
   }
 
   if (action === 'delete') {
     if (!styleId) {
-      return NextResponse.json({ success: false, error: '缺少风格ID' }, { status: 400 });
+      return errorResponse('缺少风格ID', 400);
     }
 
     try {
     const database = db();
     await database.delete(writingStyles).where(eq(writingStyles.id, styleId));
-    return NextResponse.json({ success: true });
+    return successResponse(null);
     } catch (error) {
       console.error('Style delete error:', error);
-      return NextResponse.json({ success: false, error: '删除风格失败' }, { status: 500 });
+      return errorResponse('删除风格失败');
     }
   }
 
@@ -172,7 +169,7 @@ ${a.content}
       name?: string; description?: string; config?: Record<string, unknown>;
     };
     if (!name) {
-      return NextResponse.json({ success: false, error: '缺少排版风格名称' }, { status: 400 });
+      return errorResponse('缺少排版风格名称', 400);
     }
 
     try {
@@ -190,28 +187,28 @@ ${a.content}
       calloutStyle: (config?.calloutStyle as string) || 'box',
     }).returning();
 
-    return NextResponse.json({ success: true, style: saved });
+    return successResponse(saved);
     } catch (error) {
       console.error('Layout save error:', error);
-      return NextResponse.json({ success: false, error: '保存排版风格失败' }, { status: 500 });
+      return errorResponse('保存排版风格失败');
     }
   }
 
   if (action === 'delete-layout') {
     const { styleId: layoutStyleId } = body as { styleId?: number };
     if (!layoutStyleId) {
-      return NextResponse.json({ success: false, error: '缺少排版风格ID' }, { status: 400 });
+      return errorResponse('缺少排版风格ID', 400);
     }
 
     try {
     const database = db();
     await database.delete(layoutStyles).where(eq(layoutStyles.id, layoutStyleId));
-    return NextResponse.json({ success: true });
+    return successResponse(null);
     } catch (error) {
       console.error('Layout delete error:', error);
-      return NextResponse.json({ success: false, error: '删除排版风格失败' }, { status: 500 });
+      return errorResponse('删除排版风格失败');
     }
   }
 
-  return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
+  return errorResponse('未知操作', 400);
 }

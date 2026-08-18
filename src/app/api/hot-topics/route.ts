@@ -4,6 +4,7 @@ import { hotTopics, hotTopicHistory, collectedArticles, articleRewrites } from '
 import { eq, desc, and, gt, inArray, like } from 'drizzle-orm';
 import { apiResponse } from '@/lib/utils/api-helper';
 import { demoDataDisabledMessage, isDemoDataAllowed } from '@/lib/runtime-flags';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const PLATFORMS = ['weibo', 'douyin', 'xiaohongshu', 'zhihu', 'baidu'] as const;
 const DEMO_DATA_DISABLED_MARKER = '当前已禁用演示数据';
@@ -443,7 +444,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
   try {
     switch (platform) {
       case 'weibo': {
-        const res = await fetch('https://weibo.com/ajax/side/hotSearch', { headers });
+        const res = await fetchWithTimeout('https://weibo.com/ajax/side/hotSearch', { headers });
         if (res.ok) {
           const data = await res.json();
           if (data.ok && data.data?.realtime) {
@@ -471,7 +472,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
         break;
       }
       case 'zhihu': {
-        const res = await fetch('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total', { headers });
+        const res = await fetchWithTimeout('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total', { headers });
         if (res.ok) {
           const data = await res.json();
           if (data.data) {
@@ -502,7 +503,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
         break;
       }
       case 'baidu': {
-        const res = await fetch('https://top.baidu.com/board?tab=realtime', { headers });
+        const res = await fetchWithTimeout('https://top.baidu.com/board?tab=realtime', { headers });
         if (res.ok) {
           const text = await res.text();
           const match = text.match(/<!--s-data:([\s\S]*?)-->/);
@@ -538,7 +539,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
         // 抖音热点：通过第三方聚合 API 获取（如 toutiao 或 dyxs）
         // 抖音官方无公开无认证热点 API，此处使用聚合数据接口
         try {
-          const res = await fetch('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc', {
+          const res = await fetchWithTimeout('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc', {
             headers: {
               'User-Agent': headers['User-Agent'],
               'Accept': 'application/json, text/plain, */*',
@@ -584,7 +585,7 @@ async function fetchRealHotTopics(platform: string, cookie: string) {
         // 小红书官方无公开无认证热点 API
         try {
           // 使用小红书 web 端搜索建议作为热点参考
-          const res = await fetch('https://www.xiaohongshu.com/api/sns/web/v1/search/trending', {
+          const res = await fetchWithTimeout('https://www.xiaohongshu.com/api/sns/web/v1/search/trending', {
             headers: {
               'User-Agent': headers['User-Agent'],
               'Accept': 'application/json, text/plain, */*',

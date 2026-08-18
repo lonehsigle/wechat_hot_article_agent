@@ -63,9 +63,9 @@ function StyleAnalyzerPage() {
         }),
       });
       const data = await res.json();
-      if (data.success && data.analysis) {
-        setStyleAnalysisResult(data.analysis);
-        setNewStyleName(data.analysis.suggestedName || '自定义风格');
+      if (data.success) {
+        setStyleAnalysisResult(data.data);
+        setNewStyleName(data.data.suggestedName || '自定义风格');
       } else {
         alert(data.error || '分析失败');
       }

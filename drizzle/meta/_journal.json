@@ -15,6 +15,20 @@
       "when": 1776250000000,
       "tag": "0001_systematic_optimization",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787035664411,
+      "tag": "0002_ip_plans_query_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787037520395,
+      "tag": "0003_status_query_indexes",
+      "breakpoints": true
     }
   ]
 }

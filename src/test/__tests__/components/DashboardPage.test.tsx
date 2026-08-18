@@ -58,24 +58,20 @@ describe('DashboardPage', () => {
   });
 
   it('loads and displays stats after fetch', async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        json: async () => ({
-          success: true,
-          data: [
-            { id: 1, publishStatus: 'published' },
-            { id: 2, publishStatus: 'draft' },
-            { id: 3, publishStatus: 'published' },
-          ],
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => [
-          { id: 1 },
-          { id: 2 },
-        ],
-      } as Response)
-      .mockResolvedValueOnce({
+    vi.mocked(global.fetch).mockImplementation(async input => {
+      if (String(input) === '/api/dashboard') {
+        return {
+          ok: true,
+          json: async () => ({
+            totalArticles: 3,
+            publishedArticles: 2,
+            drafts: 1,
+            analysisTasks: 2,
+          }),
+        } as Response;
+      }
+      return {
+        ok: true,
         json: async () => ({
           success: true,
           status: 'warning',
@@ -85,7 +81,8 @@ describe('DashboardPage', () => {
           security: { demoDataAllowed: false, workerTokenConfigured: false },
           warnings: ['未配置 worker'],
         }),
-      } as Response);
+      } as Response;
+    });
 
     render(<DashboardPage setActiveTab={vi.fn()} />);
 
@@ -101,16 +98,12 @@ describe('DashboardPage', () => {
   });
 
   it('calls setActiveTab when quick action clicked', async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        json: async () => ({ success: true, data: [] }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => [],
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ success: true }),
-      } as Response);
+    vi.mocked(global.fetch).mockImplementation(async input => ({
+      ok: true,
+      json: async () => String(input) === '/api/dashboard'
+        ? { totalArticles: 0, publishedArticles: 0, drafts: 0, analysisTasks: 0 }
+        : { success: true },
+    } as Response));
 
     const setActiveTab = vi.fn();
     render(<DashboardPage setActiveTab={setActiveTab} />);

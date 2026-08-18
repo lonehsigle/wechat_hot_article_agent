@@ -35,14 +35,14 @@ function createRequest(url: string, cookies: Record<string, string> = {}, header
   return req as NextRequest;
 }
 
-describe('middleware API auth boundary', () => {
+describe('proxy API auth boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('rejects private API requests without a signed session', async () => {
-    const { middleware } = await import('@/middleware');
-    const res = await middleware(createRequest('http://localhost/api/hot-topic-collect'));
+    const { proxy } = await import('@/proxy');
+    const res = await proxy(createRequest('http://localhost/api/hot-topic-collect'));
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toMatchObject({
@@ -52,8 +52,16 @@ describe('middleware API auth boundary', () => {
   });
 
   it('keeps v1 auth-key API public for its own auth_key check', async () => {
-    const { middleware } = await import('@/middleware');
-    const res = await middleware(createRequest('http://localhost/api/v1/account'));
+    const { proxy } = await import('@/proxy');
+    const res = await proxy(createRequest('http://localhost/api/v1/account'));
+
+    expect(res.status).toBe(200);
+    expect((res as any).type).toBe('next');
+  });
+
+  it('keeps the dependency-free liveness endpoint public', async () => {
+    const { proxy } = await import('@/proxy');
+    const res = await proxy(createRequest('http://localhost/api/health/live'));
 
     expect(res.status).toBe(200);
     expect((res as any).type).toBe('next');
@@ -64,8 +72,8 @@ describe('middleware API auth boundary', () => {
     delete process.env.INTERNAL_WORKER_TOKEN;
 
     vi.resetModules();
-    const { middleware } = await import('@/middleware');
-    const res = await middleware(createRequest('http://localhost/api/jobs'));
+    const { proxy } = await import('@/proxy');
+    const res = await proxy(createRequest('http://localhost/api/jobs'));
 
     expect(res.status).toBe(401);
     restoreEnvValue('INTERNAL_WORKER_TOKEN', originalToken);
@@ -76,8 +84,8 @@ describe('middleware API auth boundary', () => {
     process.env.INTERNAL_WORKER_TOKEN = 'test-worker-token';
 
     vi.resetModules();
-    const { middleware } = await import('@/middleware');
-    const res = await middleware(
+    const { proxy } = await import('@/proxy');
+    const res = await proxy(
       createRequest('http://localhost/api/jobs', {}, { 'x-internal-worker-token': 'test-worker-token' })
     );
 

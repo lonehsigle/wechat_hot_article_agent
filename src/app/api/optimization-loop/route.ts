@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { publishedArticles, optimizationSuggestions, contents, wechatAuth, wechatAccounts } from '@/lib/db/schema';
 import { eq, desc, and, isNotNull, sql } from 'drizzle-orm';
 import { callLLM } from '@/lib/llm/service';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -522,7 +523,7 @@ async function fetchWechatPublishedArticles(cookie: string, count: number) {
 
   const url = `https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: {
       'Cookie': cookie,
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

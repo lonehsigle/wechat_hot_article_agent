@@ -5,17 +5,21 @@ export function successResponse(data: unknown, status: number = 200) {
 }
 
 export function errorResponse(message: string, status: number = 500) {
-  return NextResponse.json({ success: false, error: message }, { status });
+  const publicMessage = status === 500 && process.env.NODE_ENV === 'production'
+    ? '服务器内部错误'
+    : message;
+  return NextResponse.json({ success: false, error: publicMessage }, { status });
 }
 
-export function withErrorHandler(handler: Function) {
-  return async function(request: Request, ...args: unknown[]) {
+export function withErrorHandler<TArgs extends unknown[], TResult>(
+  handler: (request: Request, ...args: TArgs) => TResult | Promise<TResult>
+) {
+  return async function(request: Request, ...args: TArgs) {
     try {
       return await handler(request, ...args);
     } catch (error) {
       console.error('API Error:', error);
-      const message = error instanceof Error ? error.message : '服务器内部错误';
-      return errorResponse(message, 500);
+      return errorResponse('服务器内部错误', 500);
     }
   };
 }

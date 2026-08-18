@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { styles, getStepStyle } from './CreateWorkbench/styles';
 import { useCreateWorkbenchState } from './CreateWorkbench/types';
 import { InputStep } from './CreateWorkbench/steps/InputStep';
@@ -11,19 +11,56 @@ import { ImagesStep } from './CreateWorkbench/steps/ImagesStep';
 import { PublishStep } from './CreateWorkbench/steps/PublishStep';
 import { DoneStep } from './CreateWorkbench/steps/DoneStep';
 import type { CreateWorkbenchProps } from './CreateWorkbench/types';
+import { fetchApi } from '@/lib/http/client';
 
 export default function CreateWorkbench({ llmConfig, topics, writingStyles, onArticleCreated }: CreateWorkbenchProps) {
   const state = useCreateWorkbenchState();
   const s = state;
 
+  const operationController = useRef<AbortController | null>(null);
+
+  useEffect(() => () => operationController.current?.abort(), []);
+
+  const startOperation = () => {
+    operationController.current?.abort();
+    operationController.current = new AbortController();
+    s.setIsLoading(true);
+  };
+
+  const finishOperation = () => {
+    operationController.current = null;
+    s.setIsLoading(false);
+  };
+
+  const cancelOperation = () => {
+    operationController.current?.abort(
+      new DOMException('操作已取消，可从当前步骤重试', 'AbortError')
+    );
+    s.setIsLoading(false);
+    s.setLoadingMessage('');
+    s.setError('操作已取消，可从当前步骤重试');
+  };
+
+  const request = (input: RequestInfo | URL, init: RequestInit = {}) => fetchApi(input, {
+    ...init,
+    signal: operationController.current?.signal ?? init.signal,
+  });
+
+  const getOperationError = (error: unknown, fallback: string) => {
+    if (operationController.current?.signal.aborted) {
+      return '操作已取消，可从当前步骤重试';
+    }
+    return error instanceof Error ? error.message : fallback;
+  };
+
   const handleSearch = async () => {
     if (!s.keyword.trim()) return;
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在搜索热点话题...');
     s.setError('');
 
     try {
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'web-search', keyword: s.keyword }),
@@ -33,15 +70,15 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setSearchResults(data.content || '');
       s.setCurrentStep('title');
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '搜索失败');
+      s.setError(getOperationError(err, '搜索失败'));
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
 
   const handleGenerateTitles = async () => {
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在生成标题...');
     s.setError('');
 
@@ -51,7 +88,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         : [];
       const firstArticle = selectedArticles[0] || null;
 
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,9 +134,9 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         await evaluateTitleList(titles);
       }
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '生成标题失败');
+      s.setError(getOperationError(err, '生成标题失败'));
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -113,7 +150,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         ? s.collectedArticles.find(a => a.id === s.selectedArticleIds[0])?.title
         : undefined;
 
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +189,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       return;
     }
 
-    s.setIsLoading(true);
+    startOperation();
     s.setError('');
 
     try {
@@ -171,7 +208,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         if (combinedContent) {
           s.setLoadingMessage('正在拆解原文框架（Step 4.2）...');
 
-          const decomposeRes = await fetch('/api/create-workshop', {
+          const decomposeRes = await request('/api/create-workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'decompose-article', content: combinedContent, title: firstArticle.title }),
@@ -180,7 +217,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           const articleContent = combinedContent.substring(0, 3000);
 
           s.setLoadingMessage('正在创作开头...');
-          const openingRes = await fetch('/api/create-workshop', {
+          const openingRes = await request('/api/create-workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'generate-opening', title: s.selectedTitle, keyword: getKeyword(), framework: decomposeData.framework, style: s.selectedStyleId, originalContent: articleContent }),
@@ -189,7 +226,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           s.setOpeningContent(openingData.opening || '');
 
           s.setLoadingMessage('正在创作正文（参考开头）...');
-          const bodyRes = await fetch('/api/create-workshop', {
+          const bodyRes = await request('/api/create-workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'generate-body', title: s.selectedTitle, keyword: getKeyword(), framework: decomposeData.framework, articleType: decomposeData.articleType, style: s.selectedStyleId, originalContent: articleContent, opening: openingData.opening || '' }),
@@ -198,7 +235,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           s.setArticleContent(bodyData.body || '');
 
           s.setLoadingMessage('正在创作结尾（参考开头和正文）...');
-          const endingRes = await fetch('/api/create-workshop', {
+          const endingRes = await request('/api/create-workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'generate-ending', title: s.selectedTitle, body: bodyData.body || '', opening: openingData.opening || '', originalContent: articleContent }),
@@ -216,7 +253,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         ? s.collectedArticles.filter(a => s.selectedArticleIds.includes(a.id)).map(a => a.content).join('\n\n---\n\n').substring(0, 5000)
         : '';
 
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'full-creation-workflow', keyword: getKeyword(), title: s.selectedTitle, style: s.selectedStyleId, originalContent: articleContent }),
@@ -229,20 +266,20 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setEndingContent(data.ending || '');
       s.setCurrentStep('content');
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '生成文章失败');
+      s.setError(getOperationError(err, '生成文章失败'));
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
 
   const handleGenerateOpening = async () => {
     if (!s.selectedTitle) return;
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在生成开头...');
 
     try {
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'generate-opening', title: s.selectedTitle, keyword: s.inputSource === 'keyword' ? s.keyword : '', style: s.selectedStyleId }),
@@ -252,18 +289,18 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
     } catch (err) {
       console.error('Generate opening failed:', err);
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
 
   const handleGenerateEnding = async () => {
     if (!s.selectedTitle || !s.articleContent) return;
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在生成结尾（参考开头和正文）...');
 
     try {
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -279,7 +316,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
     } catch (err) {
       console.error('Generate ending failed:', err);
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -291,12 +328,12 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       return;
     }
 
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在进行润色优化...');
     s.setError('');
 
     try {
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'polish-content', content: fullContent }),
@@ -310,9 +347,9 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       }
       s.setCurrentStep('polish');
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '润色优化失败');
+      s.setError(getOperationError(err, '润色优化失败'));
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -324,12 +361,12 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       return;
     }
 
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在生成配图（30%/60%/90%位置）...');
     s.setError('');
 
     try {
-      const res = await fetch('/api/image-generation', {
+      const res = await request('/api/image-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'generate-article-images', content, title: s.selectedTitle, imageCount: 3 }),
@@ -339,9 +376,9 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setGeneratedImages(data.images || []);
       s.setCurrentStep('images');
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '生成配图失败');
+      s.setError(getOperationError(err, '生成配图失败'));
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -357,12 +394,12 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       return;
     }
 
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在保存改写内容...');
     s.setError('');
 
     try {
-      const saveRes = await fetch('/api/create-workshop', {
+      const saveRes = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save-rewrite', sourceArticleIds: s.selectedArticleIds.length > 0 ? s.selectedArticleIds : [], title: s.selectedTitle, content, style: s.selectedStyleId, wordCount: content.length, aiScore: s.aiCheckResult?.score }),
@@ -387,7 +424,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         fontStyle: selectedLayoutStyle.fontStyle,
       } : null;
 
-      const res = await fetch('/api/publish', {
+      const res = await request('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'publish-with-images', accountId: parseInt(s.selectedAccountId), title: s.selectedTitle, content, images: s.generatedImages, layoutStyle: layoutStyleConfig }),
@@ -399,10 +436,11 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setCurrentStep('publish');
     } catch (err) {
       s.setPublishStatus('error');
-      s.setPublishMessage(err instanceof Error ? err.message : '发布失败');
-      s.setError(err instanceof Error ? err.message : '发布失败');
+      const message = getOperationError(err, '发布失败');
+      s.setPublishMessage(message);
+      s.setError(message);
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -414,12 +452,12 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       return;
     }
 
-    s.setIsLoading(true);
+    startOperation();
     s.setLoadingMessage('正在保存草稿...');
     s.setError('');
 
     try {
-      const res = await fetch('/api/create-workshop', {
+      const res = await request('/api/create-workshop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save-rewrite', sourceArticleIds: s.selectedArticleIds.length > 0 ? s.selectedArticleIds : [], title: s.selectedTitle, content, summary: content.substring(0, 200) + '...', style: s.selectedStyleId, wordCount: content.length, aiScore: s.aiCheckResult?.score }),
@@ -431,10 +469,11 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setCurrentStep('publish');
     } catch (err) {
       s.setPublishStatus('error');
-      s.setPublishMessage(err instanceof Error ? err.message : '保存失败');
-      s.setError(err instanceof Error ? err.message : '保存失败');
+      const message = getOperationError(err, '保存失败');
+      s.setPublishMessage(message);
+      s.setError(message);
     } finally {
-      s.setIsLoading(false);
+      finishOperation();
       s.setLoadingMessage('');
     }
   };
@@ -444,6 +483,9 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
       s.setError('请选择文章和写作风格');
       return;
     }
+
+    operationController.current?.abort();
+    operationController.current = new AbortController();
 
     s.setShowPublishModal(true);
     s.setPublishProgress([]);
@@ -457,6 +499,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
     const totalArticles = articles.length;
     let successCount = 0;
     let failCount = 0;
+    let cancelled = false;
 
     addProgress(`🚀 开始批量改写发布流程，共 ${totalArticles} 篇文章...`);
 
@@ -472,7 +515,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         s.setPublishCurrentStep('generate-title');
         addProgress(`[第${articleNum}篇] 📝 正在生成标题...`);
 
-        const titleRes = await fetch('/api/create-workshop', {
+        const titleRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate-title', content: articleContent, style: s.selectedStyleId, originalTitle: article.title, readCount: article.readCount }),
@@ -482,7 +525,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
 
         if (titles.length > 0) {
           addProgress(`[第${articleNum}篇] 📊 正在评估标题...`);
-          const evalRes = await fetch('/api/create-workshop', {
+          const evalRes = await request('/api/create-workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'evaluate-title', titles, originalTitle: article.title }),
@@ -500,7 +543,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         s.setPublishCurrentStep('generate-content');
         addProgress(`[第${articleNum}篇] ✍️ 正在拆解原文框架...`);
 
-        const decomposeRes = await fetch('/api/create-workshop', {
+        const decomposeRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'decompose-article', content: articleContent, title: finalTitle }),
@@ -508,7 +551,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         const decomposeData = await decomposeRes.json();
 
         addProgress(`[第${articleNum}篇] ✍️ 正在创作开头...`);
-        const openingRes = await fetch('/api/create-workshop', {
+        const openingRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate-opening', title: finalTitle, keyword: article.title || '', framework: decomposeData.framework, style: s.selectedStyleId, originalContent: articleContent.substring(0, 3000) }),
@@ -516,7 +559,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         const openingData = await openingRes.json();
 
         addProgress(`[第${articleNum}篇] ✍️ 正在创作正文...`);
-        const bodyRes = await fetch('/api/create-workshop', {
+        const bodyRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate-body', title: finalTitle, keyword: article.title || '', framework: decomposeData.framework, articleType: decomposeData.articleType, style: s.selectedStyleId, originalContent: articleContent.substring(0, 3000), opening: openingData.opening || '' }),
@@ -524,7 +567,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         const bodyData = await bodyRes.json();
 
         addProgress(`[第${articleNum}篇] ✍️ 正在创作结尾...`);
-        const endingRes = await fetch('/api/create-workshop', {
+        const endingRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate-ending', title: finalTitle, body: bodyData.body || '', opening: openingData.opening || '', originalContent: articleContent.substring(0, 3000) }),
@@ -536,14 +579,14 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         s.setPublishCurrentStep('polish');
         addProgress(`[第${articleNum}篇] 🎨 正在进行AI检测和润色优化...`);
 
-        const checkRes = await fetch('/api/create-workshop', {
+        const checkRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'check-ai', content: fullContent }),
         });
         const aiResult = await checkRes.json();
 
-        const polishRes = await fetch('/api/create-workshop', {
+        const polishRes = await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'polish-content', content: fullContent, aiCheckResult: aiResult }),
@@ -553,7 +596,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         s.setPublishCurrentStep('save');
         addProgress(`[第${articleNum}篇] 💾 正在保存到草稿箱...`);
 
-        await fetch('/api/create-workshop', {
+        await request('/api/create-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'save-rewrite', sourceArticleIds: [article.id], title: finalTitle, content: polishData.content || fullContent, style: s.selectedStyleId, wordCount: (polishData.content || fullContent).length, aiScore: aiResult.score }),
@@ -562,10 +605,22 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
         successCount++;
         addProgress(`[第${articleNum}篇] ✅ 完成！`);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : '处理失败';
+        const wasCancelled = operationController.current?.signal.aborted === true;
+        const errorMsg = getOperationError(err, '处理失败');
         addProgress(`[第${articleNum}篇] ❌ 失败: ${errorMsg}`);
+        if (wasCancelled) {
+          cancelled = true;
+          break;
+        }
         failCount++;
       }
+    }
+
+    if (cancelled) {
+      addProgress('⏹️ 批量处理已停止，可重新发起任务');
+      s.setPublishCurrentStep('error');
+      finishOperation();
+      return;
     }
 
     addProgress(`\n━━━ 📊 批量处理完成 ━━━`);
@@ -574,6 +629,7 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
 
     s.setPublishCurrentStep('done');
     if (successCount > 0) addProgress(`🎉 全部完成！${successCount} 篇文章已保存到草稿箱`);
+    finishOperation();
   };
 
   const handleComplete = () => {
@@ -759,6 +815,13 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           <div style={styles.loadingCard} data-cw-loading-card>
             <div style={styles.loadingSpinner}></div>
             <div style={styles.loadingText}>{s.loadingMessage}</div>
+            <button
+              type="button"
+              onClick={cancelOperation}
+              style={{ marginTop: '14px', padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', color: '#475569', cursor: 'pointer' }}
+            >
+              取消并保留当前进度
+            </button>
           </div>
         </div>
       )}
@@ -776,7 +839,17 @@ export default function CreateWorkbench({ llmConfig, topics, writingStyles, onAr
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#1e293b' }}>⚡ 批量改写发布进度</h3>
-              <button onClick={() => s.setShowPublishModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>×</button>
+              <button
+                type="button"
+                aria-label="关闭批量发布进度"
+                onClick={() => {
+                  if (operationController.current) cancelOperation();
+                  s.setShowPublishModal(false);
+                }}
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}
+              >
+                ×
+              </button>
             </div>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
               {['generate-title', 'generate-content', 'polish', 'save', 'done'].map((step, idx) => {

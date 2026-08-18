@@ -70,6 +70,16 @@ describe('html-markdown - cleanWechatHtml', () => {
     expect(cleaned).toContain('Safe');
   });
 
+  it('removes dangerous elements and URL attributes', () => {
+    const html = '<iframe srcdoc="<script>alert(1)</script>"></iframe><a href="javascript:alert(1)">link</a><img src="data:text/html;base64,evil">';
+    const cleaned = cleanWechatHtml(html);
+    expect(cleaned).not.toContain('iframe');
+    expect(cleaned).not.toContain('srcdoc');
+    expect(cleaned).not.toContain('javascript:');
+    expect(cleaned).not.toContain('data:text/html');
+    expect(cleaned).toContain('link');
+  });
+
   it('handles empty input', () => {
     expect(cleanWechatHtml('')).toBe('');
   });

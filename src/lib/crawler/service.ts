@@ -1,3 +1,5 @@
+import { fetchWithTimeout, readResponseText } from '@/lib/http/fetch';
+
 export interface DeepContent {
   url: string;
   title: string;
@@ -12,33 +14,17 @@ export interface DeepContent {
 }
 
 export async function fetchWithJina(url: string): Promise<string> {
-  const jinaUrl = `https://r.jina.ai/${url}`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-  
-  try {
-    const response = await fetch(jinaUrl, {
-      headers: {
-        'Accept': 'text/plain',
-      },
-      signal: controller.signal,
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Jina fetch failed: ${response.status}`);
-    }
-    
-    return await response.text();
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Jina fetch timeout (30s)');
-    }
-    console.error('Failed to fetch with Jina:', error);
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+  const response = await fetchWithTimeout(`https://r.jina.ai/${url}`, {
+    headers: {
+      Accept: 'text/plain',
+    },
+  }, 30_000);
+
+  if (!response.ok) {
+    throw new Error(`Jina fetch failed: ${response.status}`);
   }
+
+  return readResponseText(response, 5 * 1024 * 1024);
 }
 
 export async function fetchDeepContent(url: string): Promise<DeepContent> {

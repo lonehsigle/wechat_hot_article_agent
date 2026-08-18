@@ -1,12 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import DOMPurify from 'dompurify';
-
-const safeSanitize = (html: string): string => {
-  if (typeof window === 'undefined') return html;
-  try { return DOMPurify.sanitize(html); } catch { return html; }
-};
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface PendingArticle {
   id: number;
@@ -584,7 +579,7 @@ export default function PendingPublishPage() {
                 style={styles.previewArticle}
                 data-pp-preview-article
                 dangerouslySetInnerHTML={{
-                  __html: safeSanitize(previewArticle.content.replace(/\n/g, '<br/>').replace(/<p>/g, '<p style="margin-bottom: 16px;">'))
+                  __html: sanitizeHtml(previewArticle.content.replace(/\n/g, '<br/>').replace(/<p>/g, '<p style="margin-bottom: 16px;">'))
                 }}
               />
             </div>

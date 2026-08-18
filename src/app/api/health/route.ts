@@ -27,7 +27,7 @@ function checkEnv(name: string, requiredInProduction = true): Check {
 
 export async function GET() {
   const checks: Check[] = [
-    checkEnv('DATABASE_URL', false),
+    checkEnv('DATABASE_URL'),
     checkEnv('DB_ENCRYPTION_KEY'),
     checkEnv('AUTH_COOKIE_SECRET', false),
     checkEnv('PASSWORD_HASH_SALT'),

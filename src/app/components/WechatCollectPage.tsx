@@ -1,21 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import DOMPurify from 'dompurify';
-
-const safeSanitizeHtml = (html: string): string => {
-  if (typeof window === 'undefined') return html;
-  try {
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'em', 'strong', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'img', 'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'section', 'figure', 'figcaption', 'dl', 'dt', 'dd', 'sup', 'sub', 'hr'],
-      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel', 'data-src', 'data-type', 'id', 'colspan', 'rowspan'],
-    });
-  } catch {
-    return html;
-  }
-};
+import { sanitizeHtml } from '@/lib/sanitize';
 import MarkdownEditor from './MarkdownEditor';
 import { htmlToMarkdown, markdownToHtml } from '@/lib/utils/html-markdown';
+import { AddSubscriptionModal } from './WechatCollect/AddSubscriptionModal';
+import { StyleAnalysisModal, type StyleAnalysisResult } from './WechatCollect/StyleAnalysisModal';
+import { WechatAuthModal } from './WechatCollect/WechatAuthModal';
 
 function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' } = {}) {
   const [authorized, setAuthorized] = useState(false);
@@ -155,13 +146,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   
   const [collectingStyle, setCollectingStyle] = useState<string | null>(null);
-  const [styleAnalysisResult, setStyleAnalysisResult] = useState<{
-    articleTitle: string;
-    analysis: any;
-    suggestedName: string;
-    suggestedDescription: string;
-    styleConfig: any;
-  } | null>(null);
+  const [styleAnalysisResult, setStyleAnalysisResult] = useState<StyleAnalysisResult | null>(null);
   const [showStyleModal, setShowStyleModal] = useState(false);
   const [customStyleName, setCustomStyleName] = useState('');
 
@@ -552,10 +537,10 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       const res = await fetch('/api/wechat-collect?action=collect-article-by-url&url=' + encodeURIComponent(articleUrlInput));
       const data = await res.json();
       
-      if (data.error) {
+      if (!data.success) {
         alert('采集失败: ' + data.error);
       } else {
-        alert('文章采集成功: ' + data.title);
+        alert('文章采集成功: ' + data.data.title);
         setArticleUrlInput('');
         loadArticles();
       }
@@ -575,7 +560,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
         return;
       }
       const data = await res.json();
-      setAuthorized(data.authorized);
+      setAuthorized(data.success && data.data.authorized === true);
     } catch (error) {
       console.error('Failed to check auth:', error);
       setAuthorized(false);
@@ -589,7 +574,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
         : '/api/wechat-collect?action=list-articles';
       const res = await fetch(url);
       const data = await res.json();
-      setArticles(data);
+      setArticles(data.success && Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Failed to load articles:', error);
     }
@@ -759,7 +744,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
         const res = await fetch('/api/wechat-collect?action=check-auth');
         const data = await res.json();
         
-        if (data.authorized) {
+        if (data.success && data.data.authorized) {
           setAuthorized(true);
           setShowCookieModal(false);
           setQrCodeUrl(null);
@@ -1931,7 +1916,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                               style={{ 
                                 padding: '16px',
                               }}
-                              dangerouslySetInnerHTML={{ __html: safeSanitizeHtml(article.contentHtml) }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.contentHtml) }}
                               className="wechat-article-content"
                             />
                           ) : (
@@ -2507,7 +2492,7 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
                     backgroundColor: '#fff',
                     minHeight: isFullscreenEdit ? 'calc(100vh - 250px)' : '300px',
                   }}
-                  dangerouslySetInnerHTML={{ __html: safeSanitizeHtml(editingArticle.contentHtml) }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(editingArticle.contentHtml) }}
                   className="wechat-article-content"
                 />
               )}
@@ -2839,332 +2824,46 @@ function WechatCollectPage({ mode = 'collect' }: { mode?: 'collect' | 'account' 
       )}
 
       {showAddModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowAddModal(false)}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '500px', maxWidth: '90vw', padding: '24px' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>➕ 添加公众号</h3>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', color: '#374151', marginBottom: '8px' }}>公众号文章链接</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={newSubscriptionUrl}
-                  onChange={(e) => { setNewSubscriptionUrl(e.target.value); setParsedInfo(null); }}
-                  placeholder="https://mp.weixin.qq.com/s/..."
-                  style={{ flex: 1, padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
-                />
-                <button
-                  onClick={parseArticleUrl}
-                  disabled={parsingUrl || !newSubscriptionUrl.trim()}
-                  style={{ padding: '10px 16px', backgroundColor: parsingUrl ? '#9ca3af' : '#E8652D', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: parsingUrl ? 'not-allowed' : 'pointer' }}
-                >
-                  {parsingUrl ? '解析中...' : '解析'}
-                </button>
-              </div>
-              <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>输入任意一篇该公众号的文章链接，点击"解析"获取公众号信息</p>
-            </div>
-            
-            {parsedInfo && (
-              <div style={{ marginBottom: '16px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>📰</span>
-                  <span style={{ fontSize: '16px', fontWeight: '600', color: '#166534' }}>{parsedInfo.nickname}</span>
-                </div>
-                {parsedInfo.articleTitle && (
-                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                    示例文章：{parsedInfo.articleTitle}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }}>取消</button>
-              <button onClick={addSubscriptionFromUrl} disabled={!parsedInfo} style={{ padding: '8px 16px', backgroundColor: parsedInfo ? '#10b981' : '#e5e7eb', color: parsedInfo ? '#fff' : '#9ca3af', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: parsedInfo ? 'pointer' : 'not-allowed' }}>添加公众号</button>
-            </div>
-          </div>
-        </div>
+        <AddSubscriptionModal
+          url={newSubscriptionUrl}
+          parsing={parsingUrl}
+          parsedInfo={parsedInfo}
+          onUrlChange={(url) => {
+            setNewSubscriptionUrl(url);
+            setParsedInfo(null);
+          }}
+          onParse={parseArticleUrl}
+          onAdd={addSubscriptionFromUrl}
+          onClose={() => setShowAddModal(false)}
+        />
       )}
 
       {showStyleModal && styleAnalysisResult && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.5)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          zIndex: 1000 
-        }}>
-          <div style={{ 
-            backgroundColor: '#fff', 
-            borderRadius: '16px', 
-            width: '600px', 
-            maxWidth: '90vw', 
-            maxHeight: '85vh', 
-            overflow: 'auto',
-            padding: '24px' 
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>🎨 风格分析结果</h3>
-              <button 
-                onClick={() => { setShowStyleModal(false); setStyleAnalysisResult(null); }} 
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-              <div style={{ fontSize: '13px', color: '#166534', marginBottom: '4px' }}>文章标题</div>
-              <div style={{ fontSize: '15px', fontWeight: '500', color: '#1f2937' }}>{styleAnalysisResult.articleTitle}</div>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>风格名称</label>
-              <input
-                type="text"
-                value={customStyleName}
-                onChange={(e) => setCustomStyleName(e.target.value)}
-                placeholder="输入风格名称..."
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none',
-                }}
-              />
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '12px' }}>风格特征</div>
-              <div style={{ display: 'grid', gap: '12px' }}>
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>标题风格</div>
-                  <div style={{ fontSize: '14px', color: '#1f2937' }}>{styleAnalysisResult.analysis.titleStyle?.description || '常规风格'}</div>
-                </div>
-                
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>段落结构</div>
-                  <div style={{ fontSize: '14px', color: '#1f2937' }}>
-                    {styleAnalysisResult.analysis.paragraphStyle?.structure === 'short' ? '短小精悍' : 
-                     styleAnalysisResult.analysis.paragraphStyle?.structure === 'long' ? '详尽深入' : '长短适中'}
-                    ，平均 {styleAnalysisResult.analysis.paragraphStyle?.averageLength || 0} 字/段
-                  </div>
-                </div>
-                
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>语言风格</div>
-                  <div style={{ fontSize: '14px', color: '#1f2937' }}>
-                    {styleAnalysisResult.analysis.languageStyle?.formality === 'formal' ? '正式严谨' : 
-                     styleAnalysisResult.analysis.languageStyle?.formality === 'casual' ? '轻松口语' : '半正式风格'}
-                    ，情感基调：
-                    {styleAnalysisResult.analysis.languageStyle?.emotionalTone === 'positive' ? '积极正面' : 
-                     styleAnalysisResult.analysis.languageStyle?.emotionalTone === 'negative' ? '批判反思' : 
-                     styleAnalysisResult.analysis.languageStyle?.emotionalTone === 'mixed' ? '情感丰富' : '中性客观'}
-                  </div>
-                </div>
-                
-                {styleAnalysisResult.analysis.writingTechniques && (
-                  <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>写作技巧</div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {styleAnalysisResult.analysis.writingTechniques.storytelling && (
-                        <span style={{ padding: '4px 10px', backgroundColor: '#dbeafe', color: '#1d4ed8', borderRadius: '4px', fontSize: '12px' }}>📖 故事叙述</span>
-                      )}
-                      {styleAnalysisResult.analysis.writingTechniques.dataCitation && (
-                        <span style={{ padding: '4px 10px', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '4px', fontSize: '12px' }}>📊 数据支撑</span>
-                      )}
-                      {styleAnalysisResult.analysis.writingTechniques.questionHook && (
-                        <span style={{ padding: '4px 10px', backgroundColor: '#fef3c7', color: '#d97706', borderRadius: '4px', fontSize: '12px' }}>❓ 问题引导</span>
-                      )}
-                      {styleAnalysisResult.analysis.writingTechniques.callToAction && (
-                        <span style={{ padding: '4px 10px', backgroundColor: '#fce7f3', color: '#db2777', borderRadius: '4px', fontSize: '12px' }}>📢 行动号召</span>
-                      )}
-                      {styleAnalysisResult.analysis.writingTechniques.contrastTechnique && (
-                        <span style={{ padding: '4px 10px', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '4px', fontSize: '12px' }}>⚖️ 对比论证</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {styleAnalysisResult.analysis.vocabulary?.topWords && styleAnalysisResult.analysis.vocabulary.topWords.length > 0 && (
-                  <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>高频词汇</div>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {styleAnalysisResult.analysis.vocabulary.topWords.slice(0, 10).map((word: string, i: number) => (
-                        <span key={i} style={{ padding: '3px 8px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '12px', color: '#374151' }}>
-                          {word}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => { setShowStyleModal(false); setStyleAnalysisResult(null); }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                取消
-              </button>
-              <button
-                onClick={saveStyleToDb}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#ec4899',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                💾 保存风格
-              </button>
-            </div>
-          </div>
-        </div>
+        <StyleAnalysisModal
+          result={styleAnalysisResult}
+          name={customStyleName}
+          onNameChange={setCustomStyleName}
+          onSave={saveStyleToDb}
+          onClose={() => {
+            setShowStyleModal(false);
+            setStyleAnalysisResult(null);
+          }}
+        />
       )}
 
       {showCookieModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowCookieModal(false)}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '500px', maxWidth: '90vw', padding: '24px' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>📱 微信授权配置</h3>
-            
-            <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setAuthMode('qrcode')}
-                style={{ 
-                  flex: 1, 
-                  padding: '10px 16px', 
-                  backgroundColor: authMode === 'qrcode' ? '#07c160' : '#f3f4f6', 
-                  color: authMode === 'qrcode' ? '#fff' : '#374151',
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontSize: '14px', 
-                  cursor: 'pointer' 
-                }}
-              >
-                扫码授权
-              </button>
-              <button
-                onClick={() => setAuthMode('cookie')}
-                style={{ 
-                  flex: 1, 
-                  padding: '10px 16px', 
-                  backgroundColor: authMode === 'cookie' ? '#E8652D' : '#f3f4f6', 
-                  color: authMode === 'cookie' ? '#fff' : '#374151',
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontSize: '14px', 
-                  cursor: 'pointer' 
-                }}
-              >
-                Cookie授权
-              </button>
-            </div>
-            
-            {authMode === 'qrcode' ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                {qrCodeUrl ? (
-                  <div>
-                    <img 
-                      src={qrCodeUrl} 
-                      alt="微信扫码登录" 
-                      style={{ width: '200px', height: '200px', border: '2px solid #e5e7eb', borderRadius: '8px' }}
-                    />
-                    <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '12px' }}>
-                      {authPolling ? '⏳ 等待扫码授权中...' : '请使用微信扫描二维码'}
-                    </p>
-                    {authPolling && (
-                      <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px' }}>
-                        授权中，请勿关闭此窗口...
-                      </p>
-                    )}
-                    <button
-                      onClick={startAuth}
-                      disabled={authPolling}
-                      style={{ 
-                        marginTop: '12px', 
-                        padding: '8px 16px', 
-                        backgroundColor: authPolling ? '#d1d5db' : '#f3f4f6', 
-                        color: '#374151', 
-                        border: 'none', 
-                        borderRadius: '6px', 
-                        fontSize: '13px', 
-                        cursor: authPolling ? 'not-allowed' : 'pointer' 
-                      }}
-                    >
-                      刷新二维码
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-                      点击下方按钮启动扫码授权流程
-                    </p>
-                    <button
-                      onClick={startAuth}
-                      disabled={authLoading}
-                      style={{ 
-                        padding: '12px 24px', 
-                        backgroundColor: authLoading ? '#d1d5db' : '#07c160', 
-                        color: '#fff', 
-                        border: 'none', 
-                        borderRadius: '8px', 
-                        fontSize: '14px', 
-                        cursor: authLoading ? 'not-allowed' : 'pointer' 
-                      }}
-                    >
-                      {authLoading ? '启动中...' : '🚀 启动扫码授权'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <label style={{ display: 'block', fontSize: '14px', color: '#374151', marginBottom: '8px' }}>微信 Cookie</label>
-                <textarea
-                  value={cookieInput}
-                  onChange={(e) => setCookieInput(e.target.value)}
-                  placeholder="请粘贴从微信公众平台获取的Cookie..."
-                  style={{ width: '100%', height: '80px', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px', outline: 'none', resize: 'vertical', fontFamily: 'monospace' }}
-                />
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', lineHeight: '1.6' }}>
-                  <p style={{ marginBottom: '4px' }}><strong>获取方法：</strong></p>
-                  <p>1. 登录 <a href="https://mp.weixin.qq.com" target="_blank" rel="noopener noreferrer" style={{ color: '#E8652D' }}>微信公众平台</a></p>
-                  <p>2. 打开浏览器开发者工具 (F12)</p>
-                  <p>3. 切换到 Network 标签，刷新页面</p>
-                  <p>4. 找到任意请求，复制 Cookie 值</p>
-                </div>
-              </div>
-            )}
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button onClick={() => setShowCookieModal(false)} style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }}>取消</button>
-              {authMode === 'cookie' && (
-                <button onClick={submitCookie} disabled={authLoading} style={{ padding: '8px 16px', backgroundColor: authLoading ? '#9ca3af' : '#07c160', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: authLoading ? 'not-allowed' : 'pointer' }}>
-                  {authLoading ? '授权中...' : '确认授权'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <WechatAuthModal
+          mode={authMode}
+          qrCodeUrl={qrCodeUrl}
+          polling={authPolling}
+          loading={authLoading}
+          cookie={cookieInput}
+          onModeChange={setAuthMode}
+          onCookieChange={setCookieInput}
+          onStart={startAuth}
+          onSubmitCookie={submitCookie}
+          onClose={() => setShowCookieModal(false)}
+        />
       )}
     </div>
   );

@@ -26,13 +26,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }));
 
-// Mock DOMPurify for server-side
-vi.mock('dompurify', () => ({
-  default: {
-    sanitize: (html: string) => html,
-  },
-}));
-
 // Mock next/server
 vi.mock('next/server', () => ({
   NextResponse: {

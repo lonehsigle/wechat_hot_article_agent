@@ -148,7 +148,7 @@ export function useCreateWorkbenchState() {
       try {
         const res = await fetch('/api/wechat-collect?action=list-articles&pageSize=50');
         const data = await res.json();
-        const articles = data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : (data.articles || []));
+        const articles = data.success && Array.isArray(data.data) ? data.data : [];
         if (articles.length > 0) {
           setCollectedArticles(articles.map((a: { 
             id: number; 
@@ -182,7 +182,7 @@ export function useCreateWorkbenchState() {
       try {
         const res = await fetch('/api/wechat-accounts');
         const data = await res.json();
-        const accounts = data.success && Array.isArray(data.data) ? data.data : (data.accounts && Array.isArray(data.accounts) ? data.accounts : (Array.isArray(data) ? data : []));
+        const accounts = data.success && Array.isArray(data.data) ? data.data : [];
         if (accounts.length > 0) {
           setWechatAccounts(accounts.map((a: { 
             id: number; 
@@ -216,7 +216,7 @@ export function useCreateWorkbenchState() {
       try {
         const res = await fetch('/api/styles?type=layout');
         const data = await res.json();
-        const styles = data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+        const styles = data.success && Array.isArray(data.data) ? data.data : [];
         setLayoutStyles(styles);
       } catch (err) {
         console.error('Failed to load layout styles:', err);

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { wechatSessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { extractTokenFromRedirectUrl, USER_AGENT } from '@/lib/wechat/proxy-request';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 
@@ -40,15 +41,13 @@ export async function GET(request: NextRequest) {
 }
 
 async function getQrcode() {
-  const response = await fetch(
-    `https://mp.weixin.qq.com/cgi-bin/scanloginqrcode?action=getqrcode&random=${Date.now()}`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-      },
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/scanloginqrcode?action=getqrcode&random=${Date.now()}`,
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+    },
+  });
 
   const setCookie = response.headers.get('set-cookie') || '';
   const uuidMatch = setCookie.match(/uuid=([^;]+)/);
@@ -73,16 +72,14 @@ async function checkScan(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'uuid is required' }, { status: 400 });
   }
 
-  const response = await fetch(
-    'https://mp.weixin.qq.com/cgi-bin/scanloginqrcode?action=ask&token=&lang=zh_CN&f=json&ajax=1',
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Cookie': setCookie || `uuid=${uuid}`,
-      },
-    }
-  );
+  const response = await fetchWithTimeout('https://mp.weixin.qq.com/cgi-bin/scanloginqrcode?action=ask&token=&lang=zh_CN&f=json&ajax=1',
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Cookie': setCookie || `uuid=${uuid}`,
+    },
+  });
 
   const data = await response.json();
   return NextResponse.json(data);
@@ -96,30 +93,28 @@ async function checkLogin(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'uuid is required' }, { status: 400 });
   }
 
-  const response = await fetch(
-    `https://mp.weixin.qq.com/cgi-bin/bizlogin?action=login`,
-    {
-      method: 'POST',
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': setCookie || `uuid=${uuid}`,
-      },
-      body: new URLSearchParams({
-        userlang: 'zh_CN',
-        redirect_url: '',
-        cookie_forbidden: '0',
-        cookie_cleaned: '0',
-        plugin_used: '0',
-        login_type: '3',
-        token: '',
-        lang: 'zh_CN',
-        f: 'json',
-        ajax: '1',
-      }).toString(),
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/bizlogin?action=login`,
+  {
+    method: 'POST',
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': setCookie || `uuid=${uuid}`,
+    },
+    body: new URLSearchParams({
+      userlang: 'zh_CN',
+      redirect_url: '',
+      cookie_forbidden: '0',
+      cookie_cleaned: '0',
+      plugin_used: '0',
+      login_type: '3',
+      token: '',
+      lang: 'zh_CN',
+      f: 'json',
+      ajax: '1',
+    }).toString(),
+  });
 
   const setCookies = response.headers.getSetCookie();
   const data = await response.json();
@@ -160,16 +155,14 @@ async function checkLogin(request: NextRequest) {
 
 async function getAccountInfoByToken(token: string, cookies: string): Promise<{ nickname: string; avatar: string }> {
   try {
-    const response = await fetch(
-      `https://mp.weixin.qq.com/cgi-bin/home?t=home/index&token=${token}&lang=zh_CN`,
-      {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Referer': 'https://mp.weixin.qq.com/',
-          'Cookie': cookies,
-        },
-      }
-    );
+    const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/home?t=home/index&token=${token}&lang=zh_CN`,
+    {
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Referer': 'https://mp.weixin.qq.com/',
+        'Cookie': cookies,
+      },
+    });
 
     const html = await response.text();
     
@@ -210,16 +203,14 @@ async function searchAccount(request: NextRequest) {
     }, { status: 401 });
   }
 
-  const response = await fetch(
-    `https://mp.weixin.qq.com/cgi-bin/searchbiz?action=search_biz&begin=${begin}&count=${count}&query=${encodeURIComponent(keyword)}&token=${session.token}&lang=zh_CN&f=json&ajax=1`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Cookie': session.cookies,
-      },
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/searchbiz?action=search_biz&begin=${begin}&count=${count}&query=${encodeURIComponent(keyword)}&token=${session.token}&lang=zh_CN&f=json&ajax=1`,
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Cookie': session.cookies,
+    },
+  });
 
   const data = await response.json();
   return NextResponse.json(data);
@@ -262,16 +253,14 @@ async function getArticles(request: NextRequest) {
     ajax: '1',
   });
 
-  const response = await fetch(
-    `https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Cookie': session.cookies,
-      },
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Cookie': session.cookies,
+    },
+  });
 
   const data = await response.json();
 

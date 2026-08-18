@@ -28,36 +28,30 @@ function DashboardPage({ setActiveTab }: { setActiveTab: (tab: 'content' | 'hotT
   const loadStats = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const [articlesRes, analysisRes] = await Promise.all([
-        fetch('/api/published-articles', { signal }),
-        fetch('/api/analysis', { signal }),
-      ]);
-      const articlesResult = await articlesRes.json();
-      const analysisResult = await analysisRes.json();
-
-      const articlesData = articlesResult.success ? articlesResult.data : (Array.isArray(articlesResult) ? articlesResult : []);
-      const analysisData = Array.isArray(analysisResult) ? analysisResult : [];
-
-      const published = articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'published').length;
-      const drafts = articlesData.filter((a: { publishStatus: string }) => a.publishStatus === 'draft').length;
+      const opsPromise = fetch('/api/ops/status', { signal })
+        .then(response => response.json())
+        .catch(error => {
+          if (!(error instanceof Error && error.name === 'AbortError')) {
+            console.error('Failed to load ops status:', error);
+          }
+          return null;
+        });
+      const statsRes = await fetch('/api/dashboard', { signal });
+      if (!statsRes.ok) {
+        throw new Error(`Dashboard stats request failed: ${statsRes.status}`);
+      }
+      const statsData = await statsRes.json();
 
       setStats({
-        totalArticles: articlesData.length,
-        publishedArticles: published,
-        pendingDrafts: drafts,
-        analysisTasks: analysisData.length,
+        totalArticles: statsData.totalArticles,
+        publishedArticles: statsData.publishedArticles,
+        pendingDrafts: statsData.drafts,
+        analysisTasks: statsData.analysisTasks,
       });
 
-      try {
-        const opsRes = await fetch('/api/ops/status', { signal });
-        const opsData = await opsRes.json();
-        if (opsData.success) {
-          setOpsStatus(opsData);
-        }
-      } catch (error) {
-        if (!(error instanceof Error && error.name === 'AbortError')) {
-          console.error('Failed to load ops status:', error);
-        }
+      const opsData = await opsPromise;
+      if (opsData?.success) {
+        setOpsStatus(opsData);
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;

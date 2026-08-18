@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '@/lib/http/fetch';
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -34,23 +36,6 @@ const USER_AGENTS = [
 
 function getRandomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-}
-
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = SEARCH_TIMEOUT): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
-  }
 }
 
 function parseSearchResults(html: string, engine: string): SearchResult[] {

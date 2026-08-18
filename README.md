@@ -19,7 +19,7 @@
 - 🔄 **闭环优化** - 基于账号定位的智能内容优化
 
 ## 技术栈
-- **前端**: Next.js 15 + React 19 + TypeScript + Tailwind CSS
+- **前端**: Next.js 16 + React 19 + TypeScript + Tailwind CSS
 - **后端**: Next.js App Router + PostgreSQL + Drizzle ORM
 - **AI**: 支持 OpenAI / DeepSeek / MiniMax 等多种 LLM
 - **搜索**: Tavily / 天工 / MiniMax / 维基百科 / Bing / DuckDuckGo / 百度 / Google
@@ -34,20 +34,22 @@ npm install
 # 启动 PostgreSQL（确保本地运行）
 pg_isready -h localhost -p 5432
 
-# 推送数据库 schema
-npx drizzle-kit push
+# 执行版本化数据库迁移
+npm run db:migrate
 
 # 启动开发服务器
 npm run dev
 
 # 访问
-http://localhost:3003
+http://localhost:3000
 ```
 
 ### 使用 Docker Compose 启动（推荐）
 
 ```bash
-docker-compose up -d
+cp .env.production.example .env
+# 填写 PG_PASSWORD、DB_ENCRYPTION_KEY、PASSWORD_HASH_SALT 等必需配置；Compose 会先执行迁移
+docker compose up -d
 ```
 
 ## 环境变量配置
@@ -58,6 +60,10 @@ docker-compose up -d
 # 数据库配置
 DATABASE_URL=postgresql://content_monitor:your_password@localhost:5432/content_monitor_db
 
+# 生产环境安全配置（必须使用独立随机值）
+DB_ENCRYPTION_KEY=replace_with_random_encryption_key
+PASSWORD_HASH_SALT=replace_with_random_password_salt
+AUTH_COOKIE_SECRET=replace_with_random_cookie_secret
 # 微信公众号 API 配置
 WECHAT_APPID=your_wechat_appid
 WECHAT_SECRET=your_wechat_secret

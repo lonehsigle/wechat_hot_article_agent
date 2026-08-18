@@ -78,7 +78,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.authorized).toBe(true);
+      expect(data.data.authorized).toBe(true);
     });
 
     it('should check auth status - not authorized', async () => {
@@ -90,7 +90,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.authorized).toBe(false);
+      expect(data.data.authorized).toBe(false);
     });
 
     it('should return 500 on database error for check-auth', async () => {
@@ -116,7 +116,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.subscriptions).toHaveLength(1);
+      expect(data.data).toHaveLength(1);
     });
 
     it('should list articles', async () => {
@@ -130,7 +130,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.articles).toHaveLength(1);
+      expect(data.data).toHaveLength(1);
     });
 
     it('should list articles with subscriptionId', async () => {
@@ -144,7 +144,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.articles).toHaveLength(1);
+      expect(data.data).toHaveLength(1);
     });
 
     it('should return 400 for invalid subscriptionId', async () => {
@@ -180,7 +180,7 @@ describe('/api/wechat-collect', () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.tasks).toHaveLength(1);
+      expect(data.data).toHaveLength(1);
     });
 
     it('should clear lock', async () => {
@@ -504,6 +504,36 @@ describe('/api/wechat-collect', () => {
       expect(data.error).toContain('url is required');
     });
 
+    it('should reject non-WeChat article info URLs before fetching', async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      const { GET } = await import('@/app/api/wechat-collect/route');
+      const url = encodeURIComponent('http://127.0.0.1/internal');
+
+      const res = await GET(createRequest(
+        `http://localhost/api/wechat-collect?action=get-article-info&url=${url}`
+      ));
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.error).toContain('只支持采集微信公众平台文章');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-HTTP WeChat article URLs before fetching', async () => {
+      const fetchMock = vi.mocked(global.fetch);
+      const { GET } = await import('@/app/api/wechat-collect/route');
+      const url = encodeURIComponent('file://mp.weixin.qq.com/s/abc123');
+
+      const res = await GET(createRequest(
+        `http://localhost/api/wechat-collect?action=collect-article-by-url&url=${url}`
+      ));
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.error).toContain('只支持采集微信公众平台文章');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('should collect article by url successfully', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve({
@@ -528,7 +558,7 @@ describe('/api/wechat-collect', () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.article.title).toBe('Test Title');
+      expect(data.data.title).toBe('Test Title');
     });
 
     it('should return 500 when collect-article-by-url fails', async () => {

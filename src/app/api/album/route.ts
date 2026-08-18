@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { wechatSessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { USER_AGENT } from '@/lib/wechat/proxy-request';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -87,16 +88,14 @@ async function getAlbum(request: NextRequest) {
     f: 'json',
   });
 
-  const response = await fetch(
-    `https://mp.weixin.qq.com/mp/appmsgalbum?${params.toString()}`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Cookie': cookies,
-      },
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/mp/appmsgalbum?${params.toString()}`,
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Cookie': cookies,
+    },
+  });
 
   const data = await response.json();
 
@@ -154,16 +153,14 @@ async function getAlbumList(request: NextRequest) {
     }, { status: 401 });
   }
 
-  const response = await fetch(
-    `https://mp.weixin.qq.com/cgi-bin/appmsg?action=get_album_list&fakeid=${fakeid}&token=${session.token}&lang=zh_CN&f=json&ajax=1`,
-    {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Referer': 'https://mp.weixin.qq.com/',
-        'Cookie': session.cookies,
-      },
-    }
-  );
+  const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/appmsg?action=get_album_list&fakeid=${fakeid}&token=${session.token}&lang=zh_CN&f=json&ajax=1`,
+  {
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Referer': 'https://mp.weixin.qq.com/',
+      'Cookie': session.cookies,
+    },
+  });
 
   const data = await response.json();
   return NextResponse.json(data);

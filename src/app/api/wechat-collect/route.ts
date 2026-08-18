@@ -3,17 +3,15 @@ import { db } from '@/lib/db';
 import { wechatAuth, wechatSubscriptions, collectedArticles, collectTasks, materialLibrary } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
+import { fetchWithTimeout, readResponseText } from '@/lib/http/fetch';
+import { assertSafeRemoteUrl } from '@/lib/safe-remote-url';
+import { successResponse } from '@/lib/utils/api-response';
 
 // 安全：验证URL是否来自微信公众号文章
-function validateWechatUrl(url: string): boolean {
+function validateWechatUrl(value: string): boolean {
   try {
-    const parsed = new URL(url);
-    // 只允许微信文章域名
-    const allowedDomains = [
-      'mp.weixin.qq.com',
-      'wxn.qq.com',
-      'wenu.qq.com',
-    ];
+    const parsed = assertSafeRemoteUrl(value);
+    const allowedDomains = ['mp.weixin.qq.com', 'wxn.qq.com', 'wenu.qq.com'];
     return allowedDomains.some(domain => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`));
   } catch {
     return false;
@@ -36,14 +34,14 @@ export async function GET(request: NextRequest) {
     if (action === 'check-auth') {
       const auth = await db().select().from(wechatAuth).where(eq(wechatAuth.status, 'active')).limit(1);
       if (auth.length > 0 && auth[0].expiresAt && auth[0].expiresAt > new Date()) {
-        return NextResponse.json({ success: true, authorized: true, auth: auth[0] });
+        return successResponse({ authorized: true, auth: auth[0] });
       }
-      return NextResponse.json({ success: true, authorized: false });
+      return successResponse({ authorized: false });
     }
 
     if (action === 'list-subscriptions') {
       const subscriptions = await db().select().from(wechatSubscriptions).orderBy(desc(wechatSubscriptions.createdAt));
-      return NextResponse.json({ success: true, subscriptions });
+      return successResponse(subscriptions);
     }
 
     if (action === 'list-articles') {
@@ -61,19 +59,19 @@ export async function GET(request: NextRequest) {
           .orderBy(desc(collectedArticles.publishTime))
           .limit(pageSize)
           .offset((page - 1) * pageSize);
-        return NextResponse.json({ success: true, articles });
+        return successResponse(articles);
       }
       
       const articles = await db().select().from(collectedArticles)
         .orderBy(desc(collectedArticles.publishTime))
         .limit(pageSize)
         .offset((page - 1) * pageSize);
-      return NextResponse.json({ success: true, articles });
+      return successResponse(articles);
     }
 
     if (action === 'list-tasks') {
       const tasks = await db().select().from(collectTasks).orderBy(desc(collectTasks.createdAt));
-      return NextResponse.json({ success: true, tasks });
+      return successResponse(tasks);
     }
 
   if (action === 'clear-lock') {
@@ -204,14 +202,14 @@ export async function GET(request: NextRequest) {
     }
     
     try {
-      const res = await fetch('https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=', {
+      const res = await fetchWithTimeout('https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=', {
         headers: {
           'Cookie': cookie,
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       
-      const text = await res.text();
+      const text = await readResponseText(res, 2 * 1024 * 1024);
       const nicknameMatch = text.match(/nickname\s*:\s*['"]([^'"]+)['"]/);
       const headImgMatch = text.match(/head_img\s*:\s*['"]([^'"]+)['"]/);
       
@@ -234,15 +232,18 @@ export async function GET(request: NextRequest) {
     if (!url) {
       return NextResponse.json({ success: false, error: 'url is required' }, { status: 400 });
     }
+    if (!validateWechatUrl(url)) {
+      return NextResponse.json({ success: false, error: '只支持采集微信公众平台文章 (mp.weixin.qq.com)' }, { status: 400 });
+    }
     
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       
-      const text = await res.text();
+      const text = await readResponseText(res, 2 * 1024 * 1024);
       
       const bizMatch = text.match(/var\s+biz\s*=\s*['"]([^'"]+)['"]/);
       const nicknameMatch = text.match(/var\s+nickname\s*=\s*['"]([^'"]+)['"]/);
@@ -289,10 +290,13 @@ export async function GET(request: NextRequest) {
     if (!url) {
       return NextResponse.json({ success: false, error: 'url is required' }, { status: 400 });
     }
+    if (!validateWechatUrl(url)) {
+      return NextResponse.json({ success: false, error: '只支持采集微信公众平台文章 (mp.weixin.qq.com)' }, { status: 400 });
+    }
     
     try {
       const article = await collectArticleByUrl(url);
-      return NextResponse.json({ success: true, article });
+      return successResponse(article);
     } catch (error) {
       return NextResponse.json({ 
         success: false, error: error instanceof Error ? error.message : '采集文章失败' 
@@ -601,7 +605,7 @@ async function fetchWechatArticles(cookie: string, biz: string, count: number) {
     
     const url = `https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`;
     
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         'Cookie': cookie,
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -678,7 +682,7 @@ async function searchBiz(cookie: string, query: string, begin: number = 0, count
   
   const url = `https://mp.weixin.qq.com/cgi-bin/searchbiz?${params.toString()}`;
   
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: {
       'Cookie': cookie,
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -727,7 +731,7 @@ async function collectArticleByUrl(articleUrl: string) {
     throw new Error('请先完成微信授权');
   }
 
-  const res = await fetch(articleUrl, {
+  const res = await fetchWithTimeout(articleUrl, {
     headers: {
       'Cookie': auth.cookie,
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -740,7 +744,7 @@ async function collectArticleByUrl(articleUrl: string) {
     throw new Error(`请求失败，状态码: ${res.status}`);
   }
   
-  const html = await res.text();
+  const html = await readResponseText(res, 2 * 1024 * 1024);
 
   // 检查是否是真正的错误页面（通过检查关键元素）
   const hasErrorPage = html.includes('class="error_page"') || 

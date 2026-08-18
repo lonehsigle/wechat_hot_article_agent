@@ -6,6 +6,7 @@ import {
   parseSetCookieHeader,
   extractCredentialParams 
 } from '@/lib/wechat/wxdown-service';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -139,16 +140,14 @@ async function getComments(request: NextRequest): Promise<NextResponse<CommentRe
       f: 'json',
     });
 
-    const response = await fetch(
-      `https://mp.weixin.qq.com/mp/appmsg_comment?${params.toString()}`,
-      {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Referer': 'https://mp.weixin.qq.com/',
-          'Cookie': cookieHeader,
-        },
-      }
-    );
+    const response = await fetchWithTimeout(`https://mp.weixin.qq.com/mp/appmsg_comment?${params.toString()}`,
+    {
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Referer': 'https://mp.weixin.qq.com/',
+        'Cookie': cookieHeader,
+      },
+    });
 
     const data = await response.json();
 

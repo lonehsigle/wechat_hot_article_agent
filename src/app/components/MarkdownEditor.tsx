@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-
-const safeSanitize = (html: string): string => {
-  if (typeof window === 'undefined') return html;
-  try { return DOMPurify.sanitize(html); } catch { return html; }
-};
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface MarkdownEditorProps {
   value: string;
@@ -208,7 +203,7 @@ export default function MarkdownEditor({
           >
             {localValue ? (
               <div 
-                dangerouslySetInnerHTML={{ __html: safeSanitize(renderPreview(localValue)) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderPreview(localValue)) }}
                 className="markdown-preview"
               />
             ) : (

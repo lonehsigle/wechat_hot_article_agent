@@ -1,21 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const AUTH_RESPONSE = {
-  authenticated: true,
-  user: {
-    id: 1,
-    username: 'e2euser',
-    email: 'e2e@test.com',
-    displayName: 'E2E User',
-    role: 'admin',
-  },
-};
-
-async function login(page: any) {
-  await page.route('/api/auth', (route: any) =>
-    route.fulfill({ status: 200, body: JSON.stringify(AUTH_RESPONSE) })
-  );
-}
+import { AUTH_RESPONSE, authenticatePage } from './support/auth';
 
 test.describe('Auth Flow', () => {
   test('landing page shows features for unauthenticated user', async ({ page }) => {
@@ -30,7 +14,10 @@ test.describe('Auth Flow', () => {
   });
 
   test('redirects to app after login', async ({ page }) => {
-    await login(page);
+    await authenticatePage(page);
+    await page.route('/api/auth', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AUTH_RESPONSE) })
+    );
     await page.goto('/');
     await page.waitForURL('**/app');
     await expect(page.locator('aside h1').first()).toBeVisible();
@@ -42,7 +29,7 @@ test.describe('Auth Flow', () => {
       route.fulfill({ status: 200, body: JSON.stringify({ authenticated: false }) })
     );
     await page.goto('/app');
-    await page.waitForURL('**/');
+    await expect(page).toHaveURL(url => url.pathname === '/');
     await expect(page.locator('text=热点聚合')).toBeVisible();
   });
 });

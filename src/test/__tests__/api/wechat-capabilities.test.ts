@@ -30,6 +30,9 @@ function createRequest(url: string): NextRequest {
   Object.defineProperty(req, 'nextUrl', { value: parsedUrl, configurable: true, writable: true });
   return req as NextRequest;
 }
+const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), {
+  headers: { 'Content-Type': 'application/json' },
+});
 
 describe('/api/system/wechat-capabilities', () => {
   beforeEach(() => {
@@ -64,18 +67,10 @@ describe('/api/system/wechat-capabilities', () => {
       { id: 2, name: 'Configured', appId: 'appid', appSecret: 'secret', accessToken: null, tokenExpiresAt: null },
     ]);
     vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        json: async () => ({ access_token: 'token-1', expires_in: 7200 }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ total_count: 0, item_count: 0, item: [] }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ total_count: 0, item_count: 0, item: [] }),
-      } as Response)
-      .mockResolvedValueOnce({
-        json: async () => ({ list: [] }),
-      } as Response);
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1', expires_in: 7200 }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 0, item_count: 0, item: [] }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 0, item_count: 0, item: [] }))
+      .mockResolvedValueOnce(jsonResponse({ list: [] }));
 
     const { GET } = await import('@/app/api/system/wechat-capabilities/route');
     const res = await GET(createRequest('http://localhost/api/system/wechat-capabilities?accountId=2&live=true'));

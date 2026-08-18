@@ -1,0 +1,2 @@
+CREATE INDEX "analysis_tasks_status_created_idx" ON "analysis_tasks" USING btree ("status","created_at");--> statement-breakpoint
+CREATE INDEX "published_articles_status_created_idx" ON "published_articles" USING btree ("publish_status","created_at");

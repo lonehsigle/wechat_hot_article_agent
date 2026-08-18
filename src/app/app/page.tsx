@@ -1,24 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import styles, { mobileStyles } from '../styles';
-
-import CreateWorkbench from '../components/CreateWorkbench';
-import PendingPublishPage from '../components/PendingPublishPage';
-import OptimizationLoop from '../components/OptimizationLoop';
-import HotTopicsPage from '../page_hot_topics';
-import CrawlerPage from '../components/CrawlerPage';
-import WechatCollectPage from '../components/WechatCollectPage';
-import DashboardPage from '../components/DashboardPage';
-import TopicAnalysisPage from '../components/TopicAnalysisPage';
-import AnalyticsPanel from '../components/AnalyticsPanel';
 
 import { useAuth } from '../hooks/useAuth';
 import { useWechatAccounts } from '../hooks/useWechatAccounts';
 import { useMenuSettings } from '../hooks/useMenuSettings';
-import AddKeywordModal from '../components/modals/AddKeywordModal';
-import AddCreatorModal from '../components/modals/AddCreatorModal';
-import AccountModal from '../components/modals/AccountModal';
+
+const CreateWorkbench = dynamic(() => import('../components/CreateWorkbench'));
+const PendingPublishPage = dynamic(() => import('../components/PendingPublishPage'));
+const OptimizationLoop = dynamic(() => import('../components/OptimizationLoop'));
+const HotTopicsPage = dynamic(() => import('../page_hot_topics'));
+const CrawlerPage = dynamic(() => import('../components/CrawlerPage'));
+const WechatCollectPage = dynamic(() => import('../components/WechatCollectPage'));
+const DashboardPage = dynamic(() => import('../components/DashboardPage'));
+const TopicAnalysisPage = dynamic(() => import('../components/TopicAnalysisPage'));
+const AnalyticsPanel = dynamic(() => import('../components/AnalyticsPanel'));
+
+const AddKeywordModal = dynamic(() => import('../components/modals/AddKeywordModal'));
+const AddCreatorModal = dynamic(() => import('../components/modals/AddCreatorModal'));
+const AccountModal = dynamic(() => import('../components/modals/AccountModal'));
 
 interface MonitorCategory {
   id: string;
@@ -277,7 +279,7 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/styles');
       const data = await res.json();
-      setWritingStyles(data.success ? (data.styles || []) : (Array.isArray(data) ? data : []));
+      setWritingStyles(data.success && Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Failed to load writing styles:', error);
     }
@@ -287,7 +289,7 @@ export default function AppPage() {
     try {
       const res = await fetch('/api/benchmark');
       const data = await res.json();
-      setBenchmarkAccounts(data.success ? (data.accounts || []) : (Array.isArray(data) ? data : []));
+      setBenchmarkAccounts(data.success && Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Failed to load benchmark accounts:', error);
     }
@@ -297,7 +299,7 @@ export default function AppPage() {
     try {
       const res = await fetch(`/api/benchmark?accountId=${accountId}&withTitles=true`);
       const data = await res.json();
-      setViralTitles(data.success ? (data.titles || []) : (Array.isArray(data) ? data : []));
+      setViralTitles(data.success && Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Failed to load viral titles:', error);
     }
@@ -318,8 +320,8 @@ export default function AppPage() {
         }),
       });
       const data = await res.json();
-      if (data.success && data.account) {
-        setBenchmarkAccounts(prev => [...prev, data.account]);
+      if (data.success) {
+        setBenchmarkAccounts(prev => [...prev, data.data]);
       }
       setShowAddBenchmark(false);
       setNewBenchmark({
@@ -370,7 +372,7 @@ export default function AppPage() {
         }),
       });
       const data = await res.json();
-      alert(`成功导入 ${data.success ? (data.count || 0) : 0} 条标题`);
+      alert(`成功导入 ${data.success ? data.data.count : 0} 条标题`);
       setShowBatchImport(false);
       setBatchTitles('');
       loadViralTitles(selectedBenchmarkAccount.id);

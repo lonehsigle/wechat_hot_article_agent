@@ -122,7 +122,7 @@ function TopicAnalysisPage() {
     try {
       const res = await fetch('/api/wechat-collect?action=list-articles&pageSize=100');
       const data = await res.json();
-      const articleList = data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+      const articleList = data.success && Array.isArray(data.data) ? data.data : [];
       setArticles(articleList);
 
       calculatePublishTimeDistribution(articleList);

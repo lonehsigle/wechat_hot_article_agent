@@ -1,27 +1,33 @@
 const SIGNATURE_VERSION = 'v1';
 
 function getSignatureSecret(): string {
-  return (
-    process.env.AUTH_COOKIE_SECRET ||
-    process.env.DB_ENCRYPTION_KEY ||
-    'content-monitor-dev-auth-secret'
+  if (process.env.AUTH_COOKIE_SECRET) return process.env.AUTH_COOKIE_SECRET;
+  if (process.env.DB_ENCRYPTION_KEY) return process.env.DB_ENCRYPTION_KEY;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('生产环境必须设置 AUTH_COOKIE_SECRET 或 DB_ENCRYPTION_KEY');
+  }
+  return 'content-monitor-dev-auth-secret';
+}
+
+async function getSigningKey(): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(getSignatureSecret()),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify']
   );
 }
 
-async function signToken(token: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(getSignatureSecret()),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(token));
-  return btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+function decodeBase64Url(value: string): ArrayBuffer | null {
+  try {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+    const bytes = Uint8Array.from(decoded, character => character.charCodeAt(0));
+    return bytes.buffer;
+  } catch {
+    return null;
+  }
 }
 
 export async function verifySessionSignatureEdge(
@@ -31,6 +37,14 @@ export async function verifySessionSignatureEdge(
   if (!token || !signature) return false;
   const [version, received] = signature.split('.');
   if (version !== SIGNATURE_VERSION || !received) return false;
-  const expected = await signToken(token);
-  return expected === received;
+  const key = await getSigningKey();
+  const receivedBytes = decodeBase64Url(received);
+  if (!receivedBytes || receivedBytes.byteLength !== 32) return false;
+
+  return crypto.subtle.verify(
+    'HMAC',
+    key,
+    receivedBytes,
+    new TextEncoder().encode(token)
+  );
 }

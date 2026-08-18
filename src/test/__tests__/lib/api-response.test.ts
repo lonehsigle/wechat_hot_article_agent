@@ -25,6 +25,16 @@ describe('api-response - errorResponse', () => {
     const res = errorResponse('Not found', 404);
     expect(res.status).toBe(404);
   });
+
+  it('masks internal server errors in production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    expect(errorResponse('database password leaked').body).toEqual({
+      success: false,
+      error: '服务器内部错误',
+    });
+    vi.unstubAllEnvs();
+  });
 });
 
 describe('api-response - withErrorHandler', () => {
@@ -35,11 +45,11 @@ describe('api-response - withErrorHandler', () => {
     expect(res.body).toEqual({ success: true, data: { ok: true } });
   });
 
-  it('catches errors and returns 500', async () => {
-    const handler = vi.fn().mockRejectedValue(new Error('Boom'));
+  it('catches errors without exposing internal messages', async () => {
+    const handler = vi.fn().mockRejectedValue(new Error('database password leaked'));
     const wrapped = withErrorHandler(handler);
     const res = await wrapped(new Request('http://localhost'));
     expect(res.status).toBe(500);
-    expect(res.body.error).toContain('Boom');
+    expect(res.body).toEqual({ success: false, error: '服务器内部错误' });
   });
 });

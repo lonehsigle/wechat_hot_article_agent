@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { wechatSubscriptions, wechatSessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { USER_AGENT } from '@/lib/wechat/proxy-request';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -248,16 +249,14 @@ async function fetchNewArticles(request: NextRequest) {
     });
 
     
-    const response = await fetch(
-      `https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
-      {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Referer': 'https://mp.weixin.qq.com/',
-          'Cookie': session.cookies,
-        },
-      }
-    );
+    const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
+    {
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Referer': 'https://mp.weixin.qq.com/',
+        'Cookie': session.cookies,
+      },
+    });
 
     const data = await response.json();
 
@@ -363,16 +362,14 @@ async function runMonitor(request: NextRequest) {
         ajax: '1',
       });
       
-      const response = await fetch(
-        `https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
-        {
-          headers: {
-            'User-Agent': USER_AGENT,
-            'Referer': 'https://mp.weixin.qq.com/',
-            'Cookie': session.cookies,
-          },
-        }
-      );
+      const response = await fetchWithTimeout(`https://mp.weixin.qq.com/cgi-bin/appmsgpublish?${params.toString()}`,
+      {
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Referer': 'https://mp.weixin.qq.com/',
+          'Cookie': session.cookies,
+        },
+      });
       
       const data = await response.json();
       

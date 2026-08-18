@@ -4,6 +4,7 @@ import { verifySessionSignatureEdge } from '@/lib/session-signature-edge';
 const PUBLIC_API_PREFIXES = [
   '/api/auth',
   '/api/v1',
+  '/api/health/live',
 ];
 
 function isPublicApi(pathname: string): boolean {
@@ -21,7 +22,7 @@ function hasValidInternalWorkerToken(request: NextRequest): boolean {
   return receivedToken === expectedToken;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isProtectedPath(pathname) || isPublicApi(pathname)) {

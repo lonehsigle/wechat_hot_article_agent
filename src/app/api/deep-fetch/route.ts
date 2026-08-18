@@ -7,15 +7,12 @@ import {
 import { db } from '@/lib/db';
 import { materialLibrary } from '@/lib/db/schema';
 import { successResponse, errorResponse } from '@/lib/utils/api-response';
+import { assertSafeRemoteUrl } from '@/lib/safe-remote-url';
 
-const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '169.254.169.254'];
-
-function isUrlSafe(urlStr: string): boolean {
+function isUrlSafe(value: string): boolean {
   try {
-    const parsed = new URL(urlStr);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
-    const hostname = parsed.hostname.toLowerCase();
-    return !BLOCKED_HOSTS.some(blocked => hostname === blocked || hostname.endsWith(`.${blocked}`));
+    assertSafeRemoteUrl(value);
+    return true;
   } catch {
     return false;
   }
@@ -112,6 +109,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'preview' && url) {
+      if (!isUrlSafe(url)) {
+        return errorResponse('不允许访问该URL', 400);
+      }
       const content = await fetchDeepContent(url);
 
       return successResponse({

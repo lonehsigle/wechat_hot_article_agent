@@ -4,6 +4,7 @@ import { materialLibrary } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { unifiedSearch, type SearchConfig } from '@/lib/search/service';
 import { scoreMaterialSources } from '@/lib/verification/source-score';
+import { fetchWithTimeout } from '@/lib/http/fetch';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
@@ -78,7 +79,7 @@ function serializeMaterialForInsert(material: MaterialData) {
 }
 
 async function callLLM(prompt: string): Promise<string> {
-  const response = await fetch(`${DEEPSEEK_BASE_URL}/v1/chat/completions`, {
+  const response = await fetchWithTimeout(`${DEEPSEEK_BASE_URL}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

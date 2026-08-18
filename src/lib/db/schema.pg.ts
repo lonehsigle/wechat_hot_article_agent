@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, timestamp, boolean, serial } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, real, timestamp, boolean, serial, index } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -147,7 +147,10 @@ export const publishedArticles = pgTable('published_articles', {
   analyzedAt: timestamp('analyzed_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('published_articles_created_at_idx').on(table.createdAt),
+  index('published_articles_status_created_idx').on(table.publishStatus, table.createdAt),
+]);
 
 export const articleStats = pgTable('article_stats', {
   id: serial('id').primaryKey(),
@@ -162,7 +165,9 @@ export const articleStats = pgTable('article_stats', {
   likeGrowth: integer('like_growth').default(0),
   commentGrowth: integer('comment_growth').default(0),
   shareGrowth: integer('share_growth').default(0),
-});
+}, (table) => [
+  index('article_stats_article_record_idx').on(table.articleId, table.recordTime),
+]);
 
 export const articleStatsDaily = pgTable('article_stats_daily', {
   id: serial('id').primaryKey(),
@@ -240,7 +245,9 @@ export const viralTitles = pgTable('viral_titles', {
   isCollected: boolean('is_collected').default(false),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('viral_titles_account_publish_idx').on(table.benchmarkAccountId, table.publishDate),
+]);
 
 export const materialLibrary = pgTable('material_library', {
   id: serial('id').primaryKey(),
@@ -261,7 +268,10 @@ export const materialLibrary = pgTable('material_library', {
   isUsed: boolean('is_used').default(false),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('material_library_topic_created_idx').on(table.topicId, table.createdAt),
+  index('material_library_type_created_idx').on(table.type, table.createdAt),
+]);
 
 export const jobRuns = pgTable('job_runs', {
   id: serial('id').primaryKey(),
@@ -306,7 +316,9 @@ export const analysisTasks = pgTable('analysis_tasks', {
   startedAt: timestamp('started_at', { mode: 'date' }),
   completedAt: timestamp('completed_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('analysis_tasks_status_created_idx').on(table.status, table.createdAt),
+]);
 
 export const monitorLogs = pgTable('monitor_logs', {
   id: serial('id').primaryKey(),
@@ -331,7 +343,10 @@ export const hotTopics = pgTable('hot_topics', {
   isBlackHorse: boolean('is_black_horse').default(false),
   fetchedAt: timestamp('fetched_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('hot_topics_hot_value_idx').on(table.hotValue),
+  index('hot_topics_predicted_growth_idx').on(table.predictedGrowth),
+]);
 
 export const hotTopicHistory = pgTable('hot_topic_history', {
   id: serial('id').primaryKey(),
@@ -339,7 +354,9 @@ export const hotTopicHistory = pgTable('hot_topic_history', {
   hotValue: integer('hot_value').default(0),
   rank: integer('rank').default(0),
   recordedAt: timestamp('recorded_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('hot_topic_history_topic_recorded_idx').on(table.topicId, table.recordedAt),
+]);
 
 export const articleRewrites = pgTable('article_rewrites', {
   id: serial('id').primaryKey(),
@@ -460,7 +477,10 @@ export const collectedArticles = pgTable('collected_articles', {
   isFavorite: boolean('is_favorite').default(false),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('collected_articles_subscription_publish_idx').on(table.subscriptionId, table.publishTime),
+  index('collected_articles_publish_time_idx').on(table.publishTime),
+]);
 
 export const collectTasks = pgTable('collect_tasks', {
   id: serial('id').primaryKey(),
@@ -496,7 +516,9 @@ export const wechatDrafts = pgTable('wechat_drafts', {
   note: text('note'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('wechat_drafts_update_time_idx').on(table.updateTime),
+]);
 
 export const platformPosts = pgTable('platform_posts', {
   id: serial('id').primaryKey(),
@@ -522,7 +544,9 @@ export const platformPosts = pgTable('platform_posts', {
   note: text('note'),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('platform_posts_platform_fetched_idx').on(table.platform, table.fetchedAt),
+]);
 
 export const postComments = pgTable('post_comments', {
   id: serial('id').primaryKey(),
@@ -543,7 +567,9 @@ export const postComments = pgTable('post_comments', {
   keywords: text('keywords'),
   fetchedAt: timestamp('fetched_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('post_comments_post_like_idx').on(table.postId, table.likeCount),
+]);
 
 export const creators = pgTable('creators', {
   id: serial('id').primaryKey(),

@@ -1,5 +1,5 @@
 export function isDemoDataAllowed(): boolean {
-  return process.env.ALLOW_DEMO_DATA === 'true';
+  return process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEMO_DATA === 'true';
 }
 
 export function demoDataDisabledMessage(feature: string): string {
